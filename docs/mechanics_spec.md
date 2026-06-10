@@ -272,17 +272,65 @@ avoid-rage behaviors as informational divergences.
 
 **Formula.** Each auto-attacking unit owns a main-hand ready-at timestamp
 (`int64` ms). A swing resolves at `t = ready_at`; the next swing is scheduled
-at `t + weapon_speed_ms`. No haste, no parry-haste, no off-hand in M0 (ledger
-D-006 for parry-haste; oracle implements it at Unit.cpp:2277–2303,
-`DealMeleeDamage` VICTIMSTATE_PARRY branch — unobservable in M0 because the
-defender never swings). The idle warrior has `attacks: false` and never
-schedules a swing. Death of either unit ends the match before further events.
+at `t + weapon_speed_ms`, and may be pulled earlier by parry-haste (M-010).
+No spell/aura haste, no off-hand (dual-wield remains out of scope). Units
+with `attacks: false` never schedule a swing (`ready_at = -1`). Death of
+either unit ends the match before any further event resolves; when both
+units' swings share a timestamp, the documented total order
+(`event_queue.h`: source_id ascending) decides which resolves — and
+therefore, if it kills, which side wins.
 
-**source_status:** `primary` (trivial mechanism), parry-haste exclusion
-ledgered with citation.
+Retimed swings use lazy invalidation in the event queue: a popped Swing event
+whose timestamp no longer equals the unit's authoritative `ready_at` is
+stale and is skipped without consuming RNG or emitting trace events.
 
-**tests:** golden traces (swing cadence at exact 3600 ms intervals);
-determinism test; death-ends-match unit test.
+**source_status:** `primary` (trivial mechanism); same-timestamp resolution
+order is our own documented choice (the oracle's update loop has no exact
+analogue).
+
+**tests:** golden traces (m0: exact 3600 ms cadence; m1_mutual: interleaved
+timers); determinism tests; death-ends-match unit tests (either side);
+event-order test.
+
+---
+
+## M-010 Parry-haste
+
+**Formula.** When a unit parries an incoming swing, its own next main-hand
+swing is accelerated. With `S = weapon_speed_ms` of the PARRYING unit and
+`remaining = ready_at - now`:
+
+```
+p20 = floor(S / 5)            // 20% of weapon speed
+p60 = 3 * p20                 // 60%
+remaining > p60         ⇒ remaining -= 2 * p20      // subtract 40%
+p20 < remaining <= p60  ⇒ remaining = p20           // clamp to 20%
+remaining <= p20        ⇒ unchanged
+```
+
+Applied only if the parrying unit auto-attacks (`ready_at >= 0`). A parried
+swing deals no damage, so ordering vs. death processing is moot; we apply the
+retiming immediately after the swing resolves, matching the oracle (which
+hastens before calling DealDamage).
+
+**source_status:** `emulator_reference` — cmangos-tbc @ 009455e,
+Unit.cpp:2277–2315 (`DealMeleeDamage`, VICTIMSTATE_PARRY branch, main-hand
+path: `percent20 = GetAttackTime(BASE_ATTACK) * 0.20f`, the
+`> percent60 ⇒ -= 2*percent20` and `> percent20 ⇒ = percent20` windows).
+The off-hand path (oracle prefers hastening the sooner off-hand swing) is
+dual-wield scope, not implemented.
+
+**known_uncertainties:**
+- Oracle computes `percent20` in float and truncates on `setAttackTimer`;
+  we use integer `floor(S/5)`. Differs by ≤1 ms only when S is not a
+  multiple of 5 (ledger D-017); M1 fixture speeds (3600/2600) are exact.
+- `TODO(verify)` vs Anniversary TBC 2.5.x (D-003), and whether parry-haste
+  applies when the parrying unit's swing is mid-"ready" (remaining = 0 —
+  unchanged under the rule as written).
+
+**tests:** `test_parry_haste.cpp` — window boundaries at fixed inputs;
+forced-parry match test (parry_pm 10000) pins the exact hastened swing
+timeline; m1_mutual golden trace exercises it statistically.
 
 ---
 
