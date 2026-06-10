@@ -113,17 +113,35 @@ class IdleVecPolicy:
 class VecSelfPlay:
     """N independent ArenaEnvs; finished envs are replaced with the next
     global episode seed. Rewards: terminal win/loss/draw (+1/-1/0) plus
-    potential-based shaping shape*(gamma*phi' - phi)."""
+    potential-based shaping shape*(gamma*phi' - phi).
+
+    opponent_mix > 0 assigns that fraction of envs a FIXED opponent in one
+    slot (deterministic rotation: scripted/idle x slot 1/0); the learner
+    plays the other slot and only the learner slot's samples are trained on
+    (callers filter via the include mask from fixed_actions). This guards
+    against pure-self-play distribution overfit (e.g. never seeing an
+    opponent that banks rage and never casts)."""
 
     def __init__(self, scenario, num_envs, seed_base, gamma, shape_coef,
-                 win_reward=1.0, lib_path=None):
+                 win_reward=1.0, lib_path=None, opponent_mix=0.0,
+                 episodes_offset=0):
         self.scenario = scenario
         self.gamma = float(gamma)
         self.shape = float(shape_coef)
         self.win = float(win_reward)
         self.lib_path = lib_path
         self.seed_base = seed_base
-        self.episodes_started = 0
+        self.episodes_started = episodes_offset  # resume: continue seeds
+        self.fixed = [None] * num_envs  # env index -> None | (slot, policy)
+        n_mixed = int(round(num_envs * opponent_mix))
+        if n_mixed:
+            thr = parse_scripted_thresholds(scenario)
+            combos = [(1, ScriptedVecPolicy(thr[1])),
+                      (0, ScriptedVecPolicy(thr[0])),
+                      (1, IdleVecPolicy()),
+                      (0, IdleVecPolicy())]
+            for j in range(n_mixed):
+                self.fixed[j] = combos[j % len(combos)]
         self.envs = [self._new_env() for _ in range(num_envs)]
         self.max_hp = np.empty((num_envs, 2), dtype=np.int64)
         for i, e in enumerate(self.envs):
@@ -151,6 +169,17 @@ class VecSelfPlay:
             mask[i, 1] = mask_bits_to_vec(m1)
         self.phi = phi_from_raw(raw)  # (E,2), potential of the observed state
         return raw, mask
+
+    def fixed_actions(self, raw, mask):
+        """(E,2) int64: fixed-opponent actions, -1 where the net acts.
+        Entries >= 0 must override sampled actions and be EXCLUDED from
+        training batches."""
+        out = np.full((len(self.envs), 2), -1, dtype=np.int64)
+        for i, fx in enumerate(self.fixed):
+            if fx is not None:
+                slot, pol = fx
+                out[i, slot] = pol(raw[i:i + 1, slot], mask[i:i + 1, slot])[0]
+        return out
 
     def step_all(self, actions):
         """actions (E,2) int. Steps every env; replaces finished ones.
@@ -182,8 +211,9 @@ class VecSelfPlay:
             term0 = self.win if w == 0 else (-self.win if w == 1 else 0.0)
             rewards[i, 0] = term0 + self.shape * (self.gamma * phi_f0 - phi_pre[i, 0])
             rewards[i, 1] = -term0 + self.shape * (self.gamma * phi_f1 - phi_pre[i, 1])
-            self.completed_scores[0].append(0.5 + term0 / (2 * self.win))
-            self.completed_scores[1].append(0.5 - term0 / (2 * self.win))
+            if self.fixed[i] is None:  # log pure self-play episodes only
+                self.completed_scores[0].append(0.5 + term0 / (2 * self.win))
+                self.completed_scores[1].append(0.5 - term0 / (2 * self.win))
             env.close()
             self.envs[i] = self._new_env()
             r0 = self.envs[i].observe_raw(0)

@@ -1,0 +1,84 @@
+# This file is part of tbc-arena-lab.
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation; either version 2 of the License, or (at your option)
+# any later version. It is distributed WITHOUT ANY WARRANTY; see the GNU
+# General Public License (LICENSE) for details.
+#
+# M5 training fixture: m2_duel loadouts with realistic arena HP pools and a
+# duration cap above the natural kill time, so matches are death-decided
+# (real arena matches do not draw at 60 s).
+#
+# Changes vs m2_duel (owner-approved 2026-06-10):
+#   - max_hp 25000 -> 10000 per side. Community-documented target for a
+#     properly geared TBC arena warrior is ~10k+ unbuffed (phase-2 guides;
+#     source_status: secondary). 25000 made m2_duel@60s draw-dominant (94%
+#     of scripted-vs-scripted matches at N=500) and put decisive kills at
+#     the damage-budget ceiling.
+#   - duration_ms 60000 -> 180000: safety cap only; scripted-vs-scripted
+#     median kill is well under it at these pools.
+# m2_duel itself is untouched (golden traces preserved).
+
+name: m5_duel
+ruleset: anniversary-tbc-2.5.x
+duration_ms: 180000
+decision_tick_ms: 100
+
+attacker:
+  entity_id: 1
+  level: 70
+  weapon_skill: 350
+  defense_skill: 350
+  attack_power: 2800
+  crit_pm: 2500
+  hit_pm: 0
+  weapon_min: 320
+  weapon_max: 480
+  weapon_speed_ms: 3600
+  weapon_norm_ms: 3300
+  armor: 6200
+  dodge_pm: 800
+  parry_pm: 600
+  block_pm: 500
+  block_value: 180
+  has_shield: false
+  attacks: true
+  max_hp: 10000
+  initial_rage_deci: 0
+  pos_x_cm: 200
+  pos_y_cm: 0
+  facing_mrad: 3142
+  knows_mortal_strike: true
+  knows_heroic_strike: true
+  policy: scripted
+  scripted_hs_min_rage_deci: 700
+
+defender:
+  entity_id: 2
+  level: 70
+  weapon_skill: 350
+  defense_skill: 350
+  attack_power: 2800
+  crit_pm: 2500
+  hit_pm: 0
+  weapon_min: 150
+  weapon_max: 280
+  weapon_speed_ms: 2600
+  weapon_norm_ms: 2400
+  armor: 6200
+  dodge_pm: 800
+  parry_pm: 600
+  block_pm: 500
+  block_value: 180
+  has_shield: true
+  attacks: true
+  max_hp: 10000
+  initial_rage_deci: 0
+  pos_x_cm: 0
+  pos_y_cm: 0
+  facing_mrad: 0
+  knows_mortal_strike: false
+  knows_heroic_strike: true
+  policy: scripted
+  scripted_hs_min_rage_deci: 500

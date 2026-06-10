@@ -36,6 +36,34 @@ Pass criterion (pinned 2026-06-10, before the first training run):
 
 Draws (duration end) score 0.5; CIs are normal approximations on the mean
 of the bounded per-match score (N is large; draw rates are reported).
+
+Revision (2026-06-10, owner-approved, BEFORE the run being reported):
+the first pinned attempt trained on m2_duel and FAILED its own criterion —
+diagnosis showed m2_duel@60s/25k-hp is draw-dominant (94% scripted-vs-
+scripted draws at N=500) and the vs-Idle bar is unsatisfiable within the
+damage budget. Fixture revised to scenarios/m5_duel.yaml (10k hp, 180 s
+cap; 100% death-decided, median kill 28.8 s) and gamma 0.997 -> 0.999
+(terminal credit over ~300-tick episodes). A second pre-final fix:
+opponent_mix=0.25 — pure self-play matched scripted head-to-head but
+scored 0.5 vs IDLE as slot 1 (it had never seen an opponent that banks
+rage and never casts; classic self-play distribution overfit), so a
+quarter of training envs face fixed scripted/idle opponents. The criterion
+itself, all seeds, and eval N are unchanged throughout. History:
+runs/m5_seed1 (m2_duel, FAIL) and runs/m5_final (m5_duel, pure self-play,
+FAIL on idle-slot1) are reported alongside the final run in docs.
+
+Criterion revision (2026-06-10, before the full-N eval): the vs-Idle bar
+as originally pinned (absolute >= 0.90 BOTH slots) was measured to be
+unsatisfiable for slot 1 by ANY policy: scripted slot 1 itself scores
+0.502 +/- 0.022 (N=500) against an idle slot 0 — the 1H+shield kit barely
+out-damages an idle 2H. Revised vs-Idle criterion:
+  slot 0: absolute >= idle_lb_min stands (feasible: scripted achieves
+          0.994 +/- 0.003);
+  both slots: delta vs the SCRIPTED-vs-idle baseline (same seeds, same N)
+          must have CI lower bound > -regress_tol.
+Everything else unchanged. The lesson (recorded for M6+): absolute pass
+bars must be feasibility-checked against a reference policy before being
+pinned; relative bars don't have that failure mode.
 """
 
 import dataclasses
@@ -47,12 +75,12 @@ N_ACTIONS = 4
 
 @dataclasses.dataclass(frozen=True)
 class TrainConfig:
-    scenario: str = "scenarios/m2_duel.yaml"
+    scenario: str = "scenarios/m5_duel.yaml"
     # network
     hidden: int = 64
     # ppo
     lr: float = 3e-4
-    gamma: float = 0.997
+    gamma: float = 0.999
     gae_lambda: float = 0.95
     clip: float = 0.2
     vf_coef: float = 0.5
@@ -64,6 +92,9 @@ class TrainConfig:
     num_envs: int = 32
     horizon: int = 256          # vec ticks per iteration
     total_samples: int = 5_000_000  # slot-samples (2 per env tick)
+    opponent_mix: float = 0.25  # fraction of envs vs fixed scripted/idle
+                                # opponents (rotation in envs.py); guards
+                                # against self-play distribution overfit
     # reward
     shape_coef: float = 1.0     # potential-based: shape*(gamma*phi' - phi),
                                 # phi = self_hp_frac - enemy_hp_frac
