@@ -1,9 +1,21 @@
 # M0 Status — deterministic warrior auto-attack kernel
 
-Date: 2026-06-10. Session 1 complete: `ctest` green (29 cases / ~40k
-assertions), both golden traces replay-verified, `arena_dist` self-test
-PASSes at N=10^6 for both scenarios, throughput recorded in
-`docs/benchmarks.md` (~1.5e6 swings/sec, ~5.4e6× realtime, single core).
+Date: 2026-06-10. Session 1 complete: `ctest` green, both golden traces
+replay-verified, `arena_dist` self-test PASSes at N=10^6 for both scenarios,
+throughput recorded in `docs/benchmarks.md` (~1.5e6 swings/sec, ~5.4e6×
+realtime, single core).
+
+**Session 2 complete (same date): oracle audit + differential harness.**
+Every white-swing formula was audited against cmangos-tbc source @ 009455e
+(separate checkout, CLAUDE.md rule 7); spec entries upgraded to
+`emulator_reference` with file:line citations; mechanics aligned where the
+audit found differences (crit level-cap skill term, block-before-glance die
+order, mutual facing gate, armor min-1 floor, oracle rage arithmetic) with
+goldens regenerated under an explanatory commit. `sim/oracle/` +
+`arena_diff` form the differential harness (see
+`docs/differential_harness.md`); both scenarios PASS at N=10^6. Oracle
+avoid-rage quirks are deliberately NOT adopted (ledger D-011/D-012/D-013) and
+are quantified by the harness's INFO rows.
 
 ## What exists
 
@@ -39,13 +51,17 @@ PASSes at N=10^6 for both scenarios, throughput recorded in
 
 ## Open `TODO(verify)` items (all in docs/mechanics_spec.md)
 
-- M-001: base miss 5.00% vs equal-level player; ±0.04%/point skill-delta step;
-  blocked-crit exclusivity (D-010); over-full-table clamping order.
-- M-002/M-003/M-004: per-stage integer flooring vs oracle float math (D-004);
-  armor-then-crit pipeline order; 75% DR cap interaction with flooring.
-- M-006: `RAGE_C10_L70 = 2747`; no rage on miss/dodge/parry in TBC (D-008);
-  rage on post-mitigation damage; no 15D/c ceiling on the hit-factor form.
-- M-008: dodge facing-gated exactly as CLAUDE.md pins it.
+Resolved against the ORACLE in session 2 (all now cited): base miss 5.00%,
+skill-delta steps, blocked-crit exclusivity (D-010), armor formula + cap,
+`RAGE_C10_L70 = 2747`, dodge facing gate. Still open:
+
+- Everything remains `TODO(verify)` against **Anniversary TBC 2.5.x** (the
+  oracle models 2.4.3; D-003) — needs retail-side evidence or a 2.5.x source.
+- No-rage-on-avoid: we diverge from the oracle deliberately
+  (D-011/D-012/D-013); authentic 2.4.3/2.5.x behavior unconfirmed.
+- Over-full-table clamping order (unexercised by fixtures); per-stage integer
+  flooring vs float pipeline (D-004); discrete vs continuous weapon roll
+  (D-014); integer rage 1-ulp boundary cases (D-016).
 
 ## Known limitations (deliberate, M0)
 
@@ -56,16 +72,20 @@ PASSes at N=10^6 for both scenarios, throughput recorded in
 
 ## What the next session needs
 
-Instrumented cmangos-tbc oracle bring-up + differential harness:
+Session 2 delivered the source-level oracle audit and the `arena_diff`
+harness (items 2–3 of the original plan, with the oracle consulted at source
+level rather than via a running server). Remaining oracle work and candidate
+next steps, in rough priority order:
 
-1. Separate cmangos-tbc checkout (never vendored here — CLAUDE.md rule 7),
-   instrumented to log white-swing outcomes/damage/rage for the same two
-   pinned stat blocks.
-2. Harness consumes `arena_dist --json` output (fields: `expected_table_pm`,
-   per-outcome `count`/`observed_rate`/`ci_half_width`, `damage` summary,
-   `rage_deci_uncapped`) and compares oracle empirical rates against our
-   expected table with explicit N and CI; discrepancies go to the divergence
-   ledger, resolved TODO(verify)s get their spec entries updated to
-   `source_status: emulator_reference` with file/function citations.
-3. First targets: the M-001 base-miss and skill-delta constants, M-006 rage
-   constants, M-004 rounding (D-004).
+1. **Live-oracle capture (optional hardening):** build and run the
+   instrumented cmangos-tbc server (MySQL + DB data; heavyweight) to capture
+   real combat-log swings for the two pinned stat blocks, and feed those
+   empirical rates through the same `arena_diff` row format. This would catch
+   runtime behaviors a source audit can miss (proc ordering, state flags).
+2. **Anniversary 2.5.x evidence pass (D-003):** the pinned ruleset is still
+   unverified everywhere; decide sourcing (client combat logs, community
+   research) and start resolving the per-entry `TODO(verify)` markers.
+3. **Milestone M1 scope decision:** per CLAUDE.md, `docs/project_plan_v3.md`
+   is absent — ask before inventing scope. Natural candidates given M0:
+   second attacker (parry-haste D-006 becomes observable), dual-wield, or
+   movement — all currently OUT and gated on an explicit plan.
