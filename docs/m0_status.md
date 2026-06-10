@@ -5,6 +5,23 @@ replay-verified, `arena_dist` self-test PASSes at N=10^6 for both scenarios,
 throughput recorded in `docs/benchmarks.md` (~1.5e6 swings/sec, ~5.4e6×
 realtime, single core).
 
+**Session 4 complete (same date): M2 — first abilities + GCD.** Mortal
+Strike (instant, 6 s cooldown, 30 rage, normalized weapon damage + 210,
+specs M-013/M-014) and Heroic Strike (on-next-swing, off-GCD, +176, M-015)
+on top of a GCD framework (M-011) and the audited yellow hit pipeline
+(M-012: avoidance die without a block side, separate crit and partial-block
+rolls — blocked crits exist; crit-before-armor order, D-020). Full rage cost
+on avoided casts; no attacker rage from spells; victim rage from ability
+damage follows retail over the oracle (M-016, D-019). Decisions exist via
+deterministic per-scenario policy knobs evaluated event-driven with Decide
+wake-ups (event order now checkpoint < end < decide < swing). New fixture
+`scenarios/m2_duel.yaml` + golden; hand-pinned MS/HS timeline tests; M0/M1
+golden event streams byte-identical (header/init format only). Scenario
+files gained pinned keys: `weapon_norm_ms`, `initial_rage_deci`,
+`use_mortal_strike`, `heroic_strike_min_rage_deci`. Throughput ~2.4e6x
+realtime (docs/benchmarks.md). arena_dist/arena_diff remain white-swing
+validators; yellow differential coverage is listed for M3+.
+
 **Session 3 complete (same date): M1 — both warriors attack.** Defender may
 now have `attacks: true`; parry-haste implemented per the oracle's main-hand
 rule (spec M-010, D-006 resolved) with lazy event invalidation in the match

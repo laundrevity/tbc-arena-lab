@@ -44,3 +44,21 @@ profile. No optimization warranted at M0 (CLAUDE.md workflow).
 Two attackers (3.6 s + 2.6 s weapons, parry-haste active) roughly double
 swings/sec; realtime multiple dips ~12% from the extra swing events and
 parry-haste retiming. Still far above the bar; no optimization warranted.
+
+### 2026-06-10 — M2 abilities + GCD (commit d2e72b4+)
+
+- Same hardware/compiler/flags as above.
+- Command: `arena_bench scenarios/m2_duel.yaml --seconds 3`
+
+| metric | 60 s matches |
+|---|---|
+| simulated-ms per wall-ms | 2,432,708 |
+| swings/sec | 9.60e5 |
+| abilities/sec | 1.11e6 |
+| checkpoints/sec | 2.43e6 |
+
+Total attack resolutions ~2.07e6/sec (whites + yellows). Realtime multiple
+halves vs M1: each combat event now also runs policy evaluation, and MS adds
+Decide wake-ups plus three extra keyed rolls per cast. Per-1v1-match cost is
+still ~25 µs of wall time per simulated minute — far above any M-target; no
+optimization warranted (CLAUDE.md workflow).

@@ -33,12 +33,17 @@ Implications kept in view (but not built early):
 - **M0.5 — DONE (2026-06-10).** Oracle audit of every white-swing formula
   against cmangos-tbc source @ 009455e; mechanics aligned; `sim/oracle/` +
   `arena_diff` differential harness. See `docs/differential_harness.md`.
-- **M1 — CURRENT.** Both warriors auto-attack. New surface: interleaved swing
-  timers from two sources under the documented event total order, parry-haste
-  (ledger D-006 becomes observable), rage generation on both sides, death of
-  either unit. Still OUT: dual-wield, abilities, stances, GCD, movement,
-  anything RL-facing.
-- **M2+ — TBD with the owner.** Candidates, unordered: dual-wield; rage
-  spenders / first abilities + GCD; movement/chase/leeway; observation &
-  action-space spec; Python bindings; self-play harness; live-oracle capture
-  (instrumented cmangos server); Anniversary 2.5.x evidence pass (D-003).
+- **M1 — DONE (2026-06-10).** Both warriors auto-attack: interleaved swing
+  timers under the documented event total order, parry-haste (D-006
+  resolved), rage on both sides, death of either unit.
+- **M2 — DONE (2026-06-10).** First abilities + GCD: Mortal Strike (instant,
+  cooldown, rage cost, normalized weapon damage), Heroic Strike
+  (on-next-swing, off-GCD), yellow hit resolution (avoidance die + separate
+  crit and partial-block rolls), full-cost-on-avoid, deterministic policy
+  knobs pinned per scenario (decisions exist; RL still out). Specs
+  M-011..M-016.
+- **M3+ — TBD with the owner.** Candidates, unordered: dual-wield; stances +
+  more abilities (rage sinks with tradeoffs); movement/chase/leeway;
+  observation & action-space spec; Python bindings; self-play harness;
+  live-oracle capture (instrumented cmangos server); Anniversary 2.5.x
+  evidence pass (D-003); yellow-attack differential coverage in arena_diff.
