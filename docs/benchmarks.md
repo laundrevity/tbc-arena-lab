@@ -11,3 +11,21 @@ note on where the time goes, not optimization work. Long-term target
 ## Results
 
 (appended by hand from `arena_bench` runs)
+
+### 2026-06-10 — M0 kernel (commit 3221fe6)
+
+- Hardware: Intel Core i9-11900K @ 3.50 GHz, single core, Linux 6.17
+- Compiler: GCC 13.3.0, CMake RelWithDebInfo (`-O2 -g -DNDEBUG -Wall -Wextra -Werror`)
+- Command: `arena_bench scenarios/m0_front_shield.yaml --seconds 3`
+
+| metric | 60 s matches | `--duration-ms 100000000` (ends by death ~121 s) |
+|---|---|---|
+| simulated-ms per wall-ms | 5,416,117 | 5,526,522 |
+| swings/sec | 1.54e6 | 1.58e6 |
+| checkpoints/sec | 5.42e6 | 5.51e6 |
+
+Meets the M0 bar (≥ ~10^6 swings/sec on one core). Where the time goes: at a
+3.6 s weapon there are 3.6 hash checkpoints per swing, so checkpoint
+serialization+FNV dominates the event count; swing resolution itself
+(table build + two keyed rolls + integer pipeline) is a minority of the
+profile. No optimization warranted at M0 (CLAUDE.md workflow).
