@@ -1,0 +1,69 @@
+# This file is part of tbc-arena-lab.
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation; either version 2 of the License, or (at your option)
+# any later version. It is distributed WITHOUT ANY WARRANTY; see the GNU
+# General Public License (LICENSE) for details.
+#
+# M0 fixture: attacker in the defender's frontal arc, defender has a shield.
+# Full PvP table: miss / dodge / parry / block / crit / hit.
+#
+# Every stat is pinned explicitly (no defaults in code). All chances are
+# per-myriad (100 pm = 1%). Hand-authored values, no client data:
+#   - crit_pm 2500 = 25.00% (at L70, 22.08 crit rating per 1% — ratings are
+#     documentation only; the final chance is pinned here, spec M-001)
+#   - hit_pm 0 keeps the 5.00% base miss intact
+#   - weapon: slow two-hander, 320-480 @ 3.60s
+#   - defender faces +x (facing 0); attacker stands 200 cm in FRONT (+x),
+#     facing back toward the defender (pi = 3142 mrad)
+
+name: m0_front_shield
+ruleset: anniversary-tbc-2.5.x
+duration_ms: 60000
+
+attacker:
+  entity_id: 1
+  level: 70
+  weapon_skill: 350
+  defense_skill: 350
+  attack_power: 2800
+  crit_pm: 2500
+  hit_pm: 0
+  weapon_min: 320
+  weapon_max: 480
+  weapon_speed_ms: 3600
+  armor: 6200
+  dodge_pm: 800
+  parry_pm: 600
+  block_pm: 500
+  block_value: 180
+  has_shield: false
+  attacks: true
+  max_hp: 25000
+  pos_x_cm: 200
+  pos_y_cm: 0
+  facing_mrad: 3142
+
+defender:
+  entity_id: 2
+  level: 70
+  weapon_skill: 350
+  defense_skill: 350
+  attack_power: 2800
+  crit_pm: 2500
+  hit_pm: 0
+  weapon_min: 320
+  weapon_max: 480
+  weapon_speed_ms: 3600
+  armor: 6200
+  dodge_pm: 800
+  parry_pm: 600
+  block_pm: 500
+  block_value: 180
+  has_shield: true
+  attacks: false
+  max_hp: 25000
+  pos_x_cm: 0
+  pos_y_cm: 0
+  facing_mrad: 0
