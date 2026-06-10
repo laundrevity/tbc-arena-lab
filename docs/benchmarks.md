@@ -29,3 +29,18 @@ Meets the M0 bar (≥ ~10^6 swings/sec on one core). Where the time goes: at a
 serialization+FNV dominates the event count; swing resolution itself
 (table build + two keyed rolls + integer pipeline) is a minority of the
 profile. No optimization warranted at M0 (CLAUDE.md workflow).
+
+### 2026-06-10 — M1 mutual combat (commit 16b49b6+)
+
+- Same hardware/compiler/flags as above.
+- Command: `arena_bench scenarios/m1_mutual.yaml --seconds 3`
+
+| metric | 60 s matches |
+|---|---|
+| simulated-ms per wall-ms | 4,738,232 |
+| swings/sec | 3.28e6 |
+| checkpoints/sec | 4.74e6 |
+
+Two attackers (3.6 s + 2.6 s weapons, parry-haste active) roughly double
+swings/sec; realtime multiple dips ~12% from the extra swing events and
+parry-haste retiming. Still far above the bar; no optimization warranted.

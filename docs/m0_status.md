@@ -5,6 +5,16 @@ replay-verified, `arena_dist` self-test PASSes at N=10^6 for both scenarios,
 throughput recorded in `docs/benchmarks.md` (~1.5e6 swings/sec, ~5.4e6×
 realtime, single core).
 
+**Session 3 complete (same date): M1 — both warriors attack.** Defender may
+now have `attacks: true`; parry-haste implemented per the oracle's main-hand
+rule (spec M-010, D-006 resolved) with lazy event invalidation in the match
+loop (spec M-007); same-timestamp lethal ties resolve by the documented total
+order (D-018). New fixture `scenarios/m1_mutual.yaml` (2H vs 1H+shield) with
+golden trace; forced-parry test pins the hastened timeline exactly. M0
+behavior unchanged (M0 goldens differ in header ruleset_hash only).
+Throughput: 3.28e6 swings/sec, ~4.7e6x realtime (docs/benchmarks.md). The
+project plan now exists: docs/project_plan_v3.md (M2+ scope TBD with owner).
+
 **Session 2 complete (same date): oracle audit + differential harness.**
 Every white-swing formula was audited against cmangos-tbc source @ 009455e
 (separate checkout, CLAUDE.md rule 7); spec entries upgraded to
