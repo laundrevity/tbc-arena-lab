@@ -22,6 +22,7 @@
 
 #include "sim/core/scenario.h"
 #include "sim/mechanics/attack_table.h"
+#include "sim/mechanics/abilities.h"
 #include "sim/oracle/cmangos_model.h"
 
 using namespace arena;
@@ -104,4 +105,47 @@ TEST_CASE("oracle model: MC sanity at m0_front_shield") {
     CHECK(r.damage_mean < 1000);
     CHECK(r.rage_att_true_mean > r.rage_att_ours_mean);
     CHECK(r.rage_def_true_mean >= r.rage_def_ours_mean);
+}
+
+// --- Yellow (M-012) oracle model, M5 harness item ---
+
+TEST_CASE("oracle yellow: table widths and roll chances equal the sim builder") {
+    for (const char* name : {"m0_front_shield.yaml", "m0_behind.yaml", "m5_duel.yaml"}) {
+        const Scenario sc = load(name);
+        const bool gate = sc.name != "m0_behind";
+        const YellowTable sim_t =
+            build_yellow_table(sc.attacker, sc.defender,
+                               gate ? FacingClass::Front : FacingClass::Behind);
+        const auto ora = oracle::build_yellow_table(sc.attacker, sc.defender, gate);
+        CAPTURE(name);
+        CHECK(sim_t.miss_end == ora[0]);
+        CHECK(sim_t.dodge_end - sim_t.miss_end == ora[1]);
+        CHECK(sim_t.parry_end - sim_t.dodge_end == ora[2]);
+        CHECK(10000 - sim_t.parry_end == ora[3]);
+        CHECK(std::min(chance_crit_pm(sc.attacker, sc.defender), 10000) ==
+              oracle::yellow_crit_pm(sc.attacker, sc.defender));
+        const bool can_block = gate && sc.defender.has_shield;
+        const int32_t sim_block =
+            can_block ? std::min(chance_block_pm(sc.attacker, sc.defender), 10000) : 0;
+        CHECK(sim_block == oracle::yellow_block_pm(sc.attacker, sc.defender, gate));
+    }
+}
+
+TEST_CASE("oracle yellow: MC deterministic, counts consistent, D-019 victim rage") {
+    const Scenario sc = load("m0_front_shield.yaml");
+    const oracle::YellowMcReport a =
+        oracle::run_yellow_mc(sc.attacker, sc.defender, true, true, 210, 99, 50000);
+    const oracle::YellowMcReport b =
+        oracle::run_yellow_mc(sc.attacker, sc.defender, true, true, 210, 99, 50000);
+    CHECK(a.hit_count == b.hit_count);
+    CHECK(a.damage_mean == b.damage_mean);
+    CHECK(a.rage_def_ours_mean == b.rage_def_ours_mean);
+    uint64_t total = 0;
+    for (const uint64_t c : a.outcome_counts) total += c;
+    CHECK(total == a.n);
+    CHECK(a.outcome_counts[3] == a.hit_count);
+    CHECK(a.crit_count <= a.hit_count);
+    CHECK(a.block_count <= a.hit_count);
+    CHECK(a.rage_def_true_mean == 0.0);  // D-019: no victim rage on spell path
+    CHECK(a.rage_def_ours_mean > 0.0);
 }

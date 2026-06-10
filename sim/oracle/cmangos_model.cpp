@@ -41,42 +41,51 @@ float clamp_chance(float c) { return std::max(0.0f, std::min(c, 100.0f)); }
 // Entities/Unit.cpp:2917 frand via our keyed RNG: uniform double in [0,1).
 double to_unit(uint64_t x) { return static_cast<double>(x >> 11) * 0x1.0p-53; }
 
+// Effective chances shared by the white table and the yellow path (the
+// yellow avoidance die delegates to the same calcs, Unit.cpp:4070-4071).
+float eff_miss(const UnitSpec& att, const UnitSpec& def) {
+    const float delta = static_cast<float>(def.defense_skill - att.weapon_skill);
+    return clamp_chance(5.0f + delta * 0.04f - static_cast<float>(att.hit_pm) / 100.0f);
+}
+float eff_dodge(const UnitSpec& att, const UnitSpec& def, bool facing_gate) {
+    if (!facing_gate) return 0.0f;
+    const float delta = static_cast<float>(def.defense_skill - att.weapon_skill);
+    return clamp_chance(static_cast<float>(def.dodge_pm) / 100.0f + delta * 0.04f);
+}
+float eff_parry(const UnitSpec& att, const UnitSpec& def, bool facing_gate) {
+    if (!facing_gate) return 0.0f;
+    const float delta = static_cast<float>(def.defense_skill - att.weapon_skill);
+    return clamp_chance(static_cast<float>(def.parry_pm) / 100.0f + delta * 0.04f);
+}
+float eff_block(const UnitSpec& att, const UnitSpec& def, bool facing_gate) {
+    if (!facing_gate || !def.has_shield) return 0.0f;
+    const float delta = static_cast<float>(def.defense_skill - att.weapon_skill);
+    return clamp_chance(static_cast<float>(def.block_pm) / 100.0f + delta * 0.04f);
+}
+float eff_crit(const UnitSpec& att, const UnitSpec& def) {
+    const float crit_delta = static_cast<float>(5 * att.level - def.defense_skill);
+    return clamp_chance(static_cast<float>(att.crit_pm) / 100.0f + crit_delta * 0.04f);
+}
+
 } // namespace
 
 std::array<int32_t, OUTCOME_COUNT> build_table(const UnitSpec& att, const UnitSpec& def,
                                                bool facing_gate) {
-    const float delta = static_cast<float>(def.defense_skill - att.weapon_skill);
-
     // Player-victim path only (the harness compares PvP scenarios).
     // Miss: GetMissChance 5.0 base (Unit.cpp:3889) + 0.04/pt actual weapon
     // skill delta (Unit.cpp:3995-4013) - attacker hit (Unit.cpp:4030),
     // melee minimum 0 (Unit.cpp:4031).
-    const float miss =
-        clamp_chance(5.0f + delta * 0.04f - static_cast<float>(att.hit_pm) / 100.0f);
     // Dodge/parry/block: own chance + 0.04/pt (Unit.cpp:3380-3468), gated by
     // CanDodge/Parry/BlockInCombat (facing, shield; Unit.cpp:3182-3240).
-    const float dodge =
-        facing_gate ? clamp_chance(static_cast<float>(def.dodge_pm) / 100.0f + delta * 0.04f)
-                    : 0.0f;
-    const float parry =
-        facing_gate ? clamp_chance(static_cast<float>(def.parry_pm) / 100.0f + delta * 0.04f)
-                    : 0.0f;
-    const float block =
-        (facing_gate && def.has_shield)
-            ? clamp_chance(static_cast<float>(def.block_pm) / 100.0f + delta * 0.04f)
-            : 0.0f;
     // Crit vs players: level-capped attacker skill (Unit.cpp:3954-3964).
-    const float crit_delta = static_cast<float>(5 * att.level - def.defense_skill);
-    const float crit =
-        clamp_chance(static_cast<float>(att.crit_pm) / 100.0f + crit_delta * 0.04f);
-
+    // (Shared eff_* helpers above; the yellow path reuses them.)
     std::array<int32_t, OUTCOME_COUNT> w{};
-    w[static_cast<size_t>(Outcome::Miss)] = chance_u(miss);
-    w[static_cast<size_t>(Outcome::Dodge)] = chance_u(dodge);
-    w[static_cast<size_t>(Outcome::Parry)] = chance_u(parry);
-    w[static_cast<size_t>(Outcome::Block)] = chance_u(block);
+    w[static_cast<size_t>(Outcome::Miss)] = chance_u(eff_miss(att, def));
+    w[static_cast<size_t>(Outcome::Dodge)] = chance_u(eff_dodge(att, def, facing_gate));
+    w[static_cast<size_t>(Outcome::Parry)] = chance_u(eff_parry(att, def, facing_gate));
+    w[static_cast<size_t>(Outcome::Block)] = chance_u(eff_block(att, def, facing_gate));
     w[static_cast<size_t>(Outcome::Glance)] = 0;  // CanGlanceInCombat, Unit.cpp:3256
-    w[static_cast<size_t>(Outcome::Crit)] = chance_u(crit);
+    w[static_cast<size_t>(Outcome::Crit)] = chance_u(eff_crit(att, def));
     w[static_cast<size_t>(Outcome::Crush)] = 0;  // CanCrushInCombat, Unit.cpp:3242
     // The die has no explicit hit width (default side, Util.h:111-124);
     // mirror that by leaving hit as the remainder, floored at 0.
@@ -253,6 +262,157 @@ McReport run_mc(const UnitSpec& att, const UnitSpec& def,
     r.rage_def_ours_mean = rd_ours_sum / nd;
     r.rage_def_ours_sd = sd_of(rd_ours_sum, rd_ours_sq, nd);
     r.rage_def_true_mean = rd_true_sum / nd;
+    return r;
+}
+
+// --- Yellow (weapon-ability) path, spec M-012 ---
+
+std::array<int32_t, YELLOW_OUTCOMES> build_yellow_table(const UnitSpec& att, const UnitSpec& def,
+                                                        bool facing_gate) {
+    // Unit::MeleeSpellHitResult (Unit.cpp:2958-2998): sequential per-myriad
+    // segments miss -> dodge -> parry, remainder hits. Miss delegates to the
+    // white calc without the dual-wield penalty (Unit.cpp:4070-4071);
+    // dodge/parry gated by CanDodgeAbility/CanParryAbility (Unit.cpp:3271-3310).
+    std::array<int32_t, YELLOW_OUTCOMES> w{};
+    w[0] = chance_u(eff_miss(att, def));
+    w[1] = chance_u(eff_dodge(att, def, facing_gate));
+    w[2] = chance_u(eff_parry(att, def, facing_gate));
+    int32_t acc = 0;
+    for (size_t i = 0; i + 1 < YELLOW_OUTCOMES; ++i) {
+        if (acc + w[i] > 10000) w[i] = 10000 - acc;
+        acc += w[i];
+    }
+    w[3] = 10000 - acc;  // hit remainder
+    return w;
+}
+
+int32_t yellow_crit_pm(const UnitSpec& att, const UnitSpec& def) {
+    // Spell.cpp:1673 -> CalculateEffectiveCritChance (Unit.cpp:4044); same
+    // level-capped skill term as the white table.
+    return std::min(chance_u(eff_crit(att, def)), 10000);
+}
+
+int32_t yellow_block_pm(const UnitSpec& att, const UnitSpec& def, bool facing_gate) {
+    // RollAbilityPartialBlockOutcome (Unit.cpp:3565-3571), shield + facing.
+    return std::min(chance_u(eff_block(att, def, facing_gate)), 10000);
+}
+
+YellowMcReport run_yellow_mc(const UnitSpec& att, const UnitSpec& def, bool facing_gate,
+                             bool normalized, int32_t flat_bonus, uint64_t seed, uint64_t n) {
+    YellowMcReport r;
+    r.n = n;
+
+    const auto table = build_yellow_table(att, def, facing_gate);
+    const int32_t crit_pm = yellow_crit_pm(att, def);
+    const int32_t block_pm = yellow_block_pm(att, def, facing_gate);
+
+    // AP/14 x speed seconds folded into the float weapon bounds (white-model
+    // convention; normalized speed per M-013 for normalized abilities).
+    const int32_t speed_ms = normalized ? att.weapon_norm_ms : att.weapon_speed_ms;
+    const float ap_part = static_cast<float>(att.attack_power) / 14.0f *
+                          (static_cast<float>(speed_ms) / 1000.0f);
+    const float dmin = static_cast<float>(att.weapon_min) + ap_part;
+    const float dmax = static_cast<float>(att.weapon_max) + ap_part;
+
+    // Unit::CalcArmorReducedDamage (Unit.cpp:2445-2471), as in run_mc.
+    float level_mod = static_cast<float>(att.level);
+    if (level_mod > 59.0f) level_mod = level_mod + (4.5f * (level_mod - 59.0f));
+    float dr = 0.1f * static_cast<float>(def.armor) / (8.5f * level_mod + 40.0f);
+    dr = dr / (1.0f + dr);
+    dr = std::min(std::max(dr, 0.0f), 0.75f);
+
+    // Player::RewardRage conversion (Player.cpp:2336/2347), as in run_mc.
+    const float lv = static_cast<float>(att.level);
+    const float c =
+        static_cast<float>((0.0091107836 * lv * lv) + 3.225598133 * lv) + 4.2652911f;
+
+    int32_t cum[YELLOW_OUTCOMES];
+    int32_t acc = 0;
+    for (size_t i = 0; i < YELLOW_OUTCOMES; ++i) {
+        acc += table[i];
+        cum[i] = acc;
+    }
+
+    double dmg_sum = 0, dmg_sq = 0, rd_sum = 0, rd_sq = 0;
+    bool first_hit = true;
+    uint64_t crit_seq = 0, block_seq = 0, dmg_seq = 0;
+
+    for (uint64_t i = 0; i < n; ++i) {
+        const int32_t roll =
+            1 + static_cast<int32_t>(rng_bound(
+                    roll_u64(seed, att.entity_id, RngSubsystem::oracle_yellow_table, i), 10000));
+        size_t o = 3;
+        for (size_t s = 0; s < YELLOW_OUTCOMES; ++s) {
+            if (table[s] && roll <= cum[s]) {
+                o = s;
+                break;
+            }
+        }
+        ++r.outcome_counts[o];
+        if (o != 3) continue;  // miss/dodge/parry: no further rolls (M-012/M-009)
+
+        ++r.hit_count;
+        const bool crit =
+            static_cast<int32_t>(rng_bound(
+                roll_u64(seed, att.entity_id, RngSubsystem::oracle_yellow_crit, crit_seq++),
+                10000)) < crit_pm;
+        bool blocked = false;
+        if (block_pm > 0) {
+            blocked = static_cast<int32_t>(rng_bound(
+                          roll_u64(seed, att.entity_id, RngSubsystem::oracle_yellow_block,
+                                   block_seq++),
+                          10000)) < block_pm;
+        }
+        if (crit) ++r.crit_count;
+        if (blocked) ++r.block_count;
+
+        const double u = to_unit(
+            roll_u64(seed, att.entity_id, RngSubsystem::oracle_yellow_damage, dmg_seq++));
+        float total = static_cast<float>(flat_bonus) + dmin +
+                      static_cast<float>(u) * (dmax - dmin);
+        if (crit) total *= 2.0f;  // crit BEFORE armor, Spell.cpp:1284-1296 (D-020)
+        uint32_t d = static_cast<uint32_t>(total);
+        float after_armor = static_cast<float>(d) - static_cast<float>(d) * dr;
+        if (after_armor < 1.0f) after_armor = 1.0f;  // Unit.cpp:2470
+        d = static_cast<uint32_t>(after_armor);
+        if (blocked) d -= std::min(static_cast<uint32_t>(def.block_value), d);  // Unit.cpp:2704-2710
+
+        const double dd = static_cast<double>(d);
+        dmg_sum += dd;
+        dmg_sq += dd * dd;
+        const int32_t di = static_cast<int32_t>(d);
+        if (first_hit || di < r.damage_min) r.damage_min = di;
+        if (first_hit || di > r.damage_max) r.damage_max = di;
+        first_hit = false;
+
+        // ours_basis victim rage: oracle arithmetic on our convention
+        // (M-016: victims do gain rage from ability damage). True oracle
+        // spell path grants none (D-019) — rage_def_true_mean stays 0.
+        const double rd = d > 0
+                              ? static_cast<double>(static_cast<uint32_t>(
+                                    static_cast<float>(d) / c * 2.5f * 10.0f))
+                              : 0.0;
+        rd_sum += rd;
+        rd_sq += rd * rd;
+    }
+
+    const double nd = static_cast<double>(n);
+    const auto sd_of = [](double sum, double sq, double count) {
+        if (count < 2) return 0.0;
+        const double mean = sum / count;
+        const double var = (sq - mean * mean * count) / (count - 1.0);
+        return var > 0 ? std::sqrt(var) : 0.0;
+    };
+    if (r.hit_count) {
+        const double hc = static_cast<double>(r.hit_count);
+        r.damage_mean = dmg_sum / hc;
+        r.damage_sd = sd_of(dmg_sum, dmg_sq, hc);
+    }
+    // Per attack over ALL n (avoided attacks contribute 0), matching the
+    // arena_dist convention.
+    r.rage_def_ours_mean = rd_sum / nd;
+    r.rage_def_ours_sd = sd_of(rd_sum, rd_sq, nd);
+    r.rage_def_true_mean = 0.0;  // D-019
     return r;
 }
 

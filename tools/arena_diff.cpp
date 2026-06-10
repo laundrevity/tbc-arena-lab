@@ -48,6 +48,7 @@
 #include "sim/core/fixed_trig.h"
 #include "sim/core/scenario.h"
 #include "sim/core/trace.h"
+#include "sim/mechanics/abilities.h"
 #include "sim/mechanics/attack_table.h"
 #include "sim/mechanics/dist.h"
 #include "sim/mechanics/ruleset.h"
@@ -96,6 +97,26 @@ bool get_double(const std::string& s, const char* key, double& out) {
     if (pos == std::string::npos) return false;
     out = strtod(s.c_str() + pos + pat.size(), nullptr);
     return true;
+}
+
+// Brace-matching extractor for nested sections (sub_object stops at the
+// first '}' and only works on flat objects).
+bool nested_object(const std::string& line, const char* key, std::string& out) {
+    std::string pat = "\"";
+    pat += key;
+    pat += "\":{";
+    const size_t pos = line.find(pat);
+    if (pos == std::string::npos) return false;
+    const size_t open = pos + pat.size() - 1;
+    int depth = 0;
+    for (size_t i = open; i < line.size(); ++i) {
+        if (line[i] == '{') ++depth;
+        if (line[i] == '}' && --depth == 0) {
+            out = line.substr(open, i - open + 1);
+            return true;
+        }
+    }
+    return false;
 }
 
 struct Row {
@@ -294,6 +315,149 @@ int main(int argc, char** argv) {
         rows.push_back(Row{"rage_def.mean(oracle-true)", fmt("%.3f", rd_mean),
                            fmt("%.3f", mc.rage_def_true_mean),
                            "expected divergence D-013 (informational)", false, true});
+    }
+
+    // 5) Yellow (weapon-ability) coverage, spec M-012 (M5 harness item).
+    struct YellowParams {
+        const char* key;
+        bool normalized;
+        int32_t flat_bonus;
+        uint64_t salt;
+    };
+    const YellowParams yparams[2] = {
+        {"yellow_ms", true, MS_FLAT_BONUS, 0x0AC1E13E110ULL},
+        {"yellow_hs", false, HS_FLAT_BONUS, 0x0AC1E13E111ULL},
+    };
+    for (const YellowParams& yp : yparams) {
+        std::string ysec;
+        if (!nested_object(line, yp.key, ysec)) {
+            fprintf(stderr, "arena_diff: dist report lacks %s — regenerate with a current "
+                            "arena_dist build\n", yp.key);
+            return 1;
+        }
+        double flat_in_report = 0;
+        if (!get_double(ysec, "flat_bonus", flat_in_report) ||
+            static_cast<int32_t>(flat_in_report) != yp.flat_bonus) {
+            fprintf(stderr, "arena_diff: %s flat_bonus mismatch vs abilities.h\n", yp.key);
+            return 1;
+        }
+
+        // Sim-side expectations and the oracle yellow model.
+        const FacingClass fc = gate ? FacingClass::Front : FacingClass::Behind;
+        const YellowTable sim_yt = build_yellow_table(sc.attacker, sc.defender, fc);
+        const int32_t sim_w[4] = {sim_yt.miss_end, sim_yt.dodge_end - sim_yt.miss_end,
+                                  sim_yt.parry_end - sim_yt.dodge_end, 10000 - sim_yt.parry_end};
+        const auto ora_w = oracle::build_yellow_table(sc.attacker, sc.defender, gate);
+        const bool can_block = gate && sc.defender.has_shield;
+        const int32_t sim_crit = std::min(chance_crit_pm(sc.attacker, sc.defender), 10000);
+        const int32_t sim_block =
+            can_block ? std::min(chance_block_pm(sc.attacker, sc.defender), 10000) : 0;
+        const int32_t ora_crit = oracle::yellow_crit_pm(sc.attacker, sc.defender);
+        const int32_t ora_block = oracle::yellow_block_pm(sc.attacker, sc.defender, gate);
+        const oracle::YellowMcReport ymc =
+            oracle::run_yellow_mc(sc.attacker, sc.defender, gate, yp.normalized, yp.flat_bonus,
+                                  seed ^ yp.salt, mc_n);
+
+        static const char* ynames[4] = {"miss", "dodge", "parry", "hit"};
+        const std::string prefix = std::string(yp.key) + ".";
+        // Table widths + separate-roll chances, exact.
+        for (size_t i = 0; i < 4; ++i) {
+            rows.push_back(Row{"ytable_pm." + prefix + ynames[i], std::to_string(sim_w[i]),
+                               std::to_string(ora_w[i]), "exact per-myriad equality", true,
+                               sim_w[i] == ora_w[i]});
+        }
+        rows.push_back(Row{"ychance_pm." + prefix + "crit", std::to_string(sim_crit),
+                           std::to_string(ora_crit), "exact per-myriad equality", true,
+                           sim_crit == ora_crit});
+        rows.push_back(Row{"ychance_pm." + prefix + "block", std::to_string(sim_block),
+                           std::to_string(ora_block), "exact per-myriad equality", true,
+                           sim_block == ora_block});
+
+        // Observed rates vs oracle expectations (die rows over n; crit/block
+        // over the report's hit count), 99% binomial CI.
+        double hits_d = 0;
+        {
+            std::string dmgsec;
+            if (!nested_object(ysec, "damage", dmgsec) ||
+                !get_double(dmgsec, "hits", hits_d)) {
+                fprintf(stderr, "arena_diff: %s lacks damage.hits\n", yp.key);
+                return 1;
+            }
+        }
+        const char* rate_rows[6] = {"miss", "dodge", "parry", "hit", "crit|hit", "block|hit"};
+        const int32_t ora_pm[6] = {ora_w[0], ora_w[1], ora_w[2], ora_w[3], ora_crit, ora_block};
+        for (size_t i = 0; i < 6; ++i) {
+            std::string elem;
+            int64_t count = 0, trials = 0;
+            if (!outcome_element(ysec, rate_rows[i], elem) ||
+                !trace_get_i64(elem, "count", count) ||
+                !trace_get_i64(elem, "trials", trials)) {
+                fprintf(stderr, "arena_diff: %s lacks outcome '%s'\n", yp.key, rate_rows[i]);
+                return 1;
+            }
+            const double tn = static_cast<double>(trials);
+            const double p = static_cast<double>(ora_pm[i]) / 10000.0;
+            const double obs = tn > 0 ? static_cast<double>(count) / tn : 0.0;
+            const double ci = tn > 0 ? z * std::sqrt(p * (1.0 - p) / tn) : 0.0;
+            rows.push_back(Row{"yrate." + prefix + rate_rows[i], fmt("%.6f", obs),
+                               fmt("%.6f", p),
+                               "99% binomial CI half-width " + fmt("%.6f", ci), true,
+                               p == 0.0 ? count == 0 : std::fabs(obs - p) <= ci});
+        }
+
+        // Damage over hits: two-sample z vs the oracle MC; min/max +/-2.
+        std::string dmgsec;
+        double ymean = 0, ysd = 0, ymin = 0, ymax = 0;
+        nested_object(ysec, "damage", dmgsec);
+        if (!get_double(dmgsec, "mean", ymean) || !get_double(dmgsec, "sd", ysd) ||
+            !get_double(dmgsec, "min", ymin) || !get_double(dmgsec, "max", ymax)) {
+            fprintf(stderr, "arena_diff: %s lacks damage{mean,sd,min,max}\n", yp.key);
+            return 1;
+        }
+        {
+            const double se = std::sqrt(ysd * ysd / hits_d +
+                                        ymc.damage_sd * ymc.damage_sd /
+                                            static_cast<double>(ymc.hit_count));
+            const double zv = se > 0 ? (ymean - ymc.damage_mean) / se : 0.0;
+            rows.push_back(Row{"ydamage." + prefix + "mean", fmt("%.3f", ymean),
+                               fmt("%.3f", ymc.damage_mean),
+                               "two-sample z " + fmt("%.2f", zv) +
+                                   " (crit-before-armor float pipeline, D-020/D-004/D-014)",
+                               true, std::fabs(zv) <= z});
+            rows.push_back(Row{"ydamage." + prefix + "min", fmt("%.0f", ymin),
+                               std::to_string(ymc.damage_min), "tolerance +/-2 (D-004/D-014)",
+                               true, std::fabs(ymin - ymc.damage_min) <= 2.0});
+            rows.push_back(Row{"ydamage." + prefix + "max", fmt("%.0f", ymax),
+                               std::to_string(ymc.damage_max), "tolerance +/-2 (D-004/D-014)",
+                               true, std::fabs(ymax - ymc.damage_max) <= 2.0});
+        }
+
+        // Victim rage: ours-basis strict (validates the M-016 integer port
+        // against oracle arithmetic); oracle-true INFO (= 0, D-019).
+        std::string rsec;
+        double yrd_mean = 0, yrd_sd = 0;
+        if (!nested_object(ysec, "rage_def_deci", rsec) ||
+            !get_double(rsec, "mean", yrd_mean) || !get_double(rsec, "sd", yrd_sd)) {
+            fprintf(stderr, "arena_diff: %s lacks rage_def_deci\n", yp.key);
+            return 1;
+        }
+        {
+            const double se =
+                std::sqrt(yrd_sd * yrd_sd / static_cast<double>(n) +
+                          ymc.rage_def_ours_sd * ymc.rage_def_ours_sd /
+                              static_cast<double>(ymc.n));
+            const double zv = se > 0 ? (yrd_mean - ymc.rage_def_ours_mean) / se : 0.0;
+            rows.push_back(Row{"yrage_def." + prefix + "mean(ours-basis)",
+                               fmt("%.3f", yrd_mean), fmt("%.3f", ymc.rage_def_ours_mean),
+                               "two-sample z " + fmt("%.2f", zv) +
+                                   ", oracle arithmetic, our basis (M-016)",
+                               true, std::fabs(zv) <= z});
+            rows.push_back(Row{"yrage_def." + prefix + "mean(oracle-true)",
+                               fmt("%.3f", yrd_mean), "0.000",
+                               "oracle grants NO victim rage on the spell path (D-019, "
+                               "informational)",
+                               false, true});
+        }
     }
 
     // --- output ---

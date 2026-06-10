@@ -40,8 +40,48 @@ using namespace arena;
 
 namespace {
 
+void write_yellow_json(FILE* f, const char* key, const YellowDistReport& y) {
+    fprintf(f, "\"%s\":{\"normalized\":%s,\"flat_bonus\":%d,\"table_pm\":{", key,
+            y.normalized ? "true" : "false", y.flat_bonus);
+    for (int32_t i = 0; i < YELLOW_DIST_ROWS; ++i) {
+        const YellowRateRow& row = y.rows[static_cast<size_t>(i)];
+        fprintf(f, "%s\"%s\":%d", i ? "," : "", row.name, row.expected_pm);
+    }
+    fprintf(f, "},\"outcomes\":[");
+    for (int32_t i = 0; i < YELLOW_DIST_ROWS; ++i) {
+        const YellowRateRow& row = y.rows[static_cast<size_t>(i)];
+        fprintf(f,
+                "%s{\"outcome\":\"%s\",\"expected_pm\":%d,\"expected_rate\":%.8f,"
+                "\"trials\":%" PRIu64 ",\"count\":%" PRIu64 ",\"observed_rate\":%.8f,"
+                "\"ci_half_width\":%.8f,\"pass\":%s}",
+                i ? "," : "", row.name, row.expected_pm, row.expected_rate, row.trials,
+                row.count, row.observed_rate, row.ci_half_width, row.pass ? "true" : "false");
+    }
+    fprintf(f,
+            "],\"damage\":{\"hits\":%" PRIu64 ",\"min\":%d,\"max\":%d,\"mean\":%.4f,"
+            "\"sd\":%.4f},\"rage_def_deci\":{\"mean\":%.4f,\"sd\":%.4f},\"all_pass\":%s}",
+            y.hit_count, y.damage_min, y.damage_max, y.damage_mean, y.damage_sd,
+            y.rage_def_mean_deci, y.rage_def_sd_deci, y.all_pass ? "true" : "false");
+}
+
+void print_yellow(const char* label, const YellowDistReport& y) {
+    printf("yellow %s (normalized=%s, flat=%d):\n", label, y.normalized ? "true" : "false",
+           y.flat_bonus);
+    printf("%-10s %12s %12s %12s %12s  %s\n", "outcome", "expected", "observed", "count",
+           "ci_half", "result");
+    for (int32_t i = 0; i < YELLOW_DIST_ROWS; ++i) {
+        const YellowRateRow& row = y.rows[static_cast<size_t>(i)];
+        printf("%-10s %12.6f %12.6f %12" PRIu64 " %12.6f  %s\n", row.name, row.expected_rate,
+               row.observed_rate, row.count, row.ci_half_width, row.pass ? "PASS" : "FAIL");
+    }
+    printf("yellow %s damage (hits: %" PRIu64 "): mean %.2f sd %.2f, min %d, max %d; "
+           "victim rage/attack %.2f deci\n",
+           label, y.hit_count, y.damage_mean, y.damage_sd, y.damage_min, y.damage_max,
+           y.rage_def_mean_deci);
+}
+
 void write_json(FILE* f, const Scenario& sc, const std::string& scenario_path, uint64_t seed,
-                const DistReport& r) {
+                const DistReport& r, const YellowDistReport& yms, const YellowDistReport& yhs) {
     fprintf(f,
             "{\"type\":\"dist_report\",\"sim_commit\":\"%s\",\"ruleset\":\"%s\","
             "\"ruleset_hash\":\"0x%016" PRIx64 "\",\"scenario\":\"%s\",\"scenario_name\":\"%s\","
@@ -68,11 +108,15 @@ void write_json(FILE* f, const Scenario& sc, const std::string& scenario_path, u
             "\"sd\":%.4f,\"p50\":%d,\"p99\":%d,\"mean_per_swing\":%.4f},"
             "\"rage_deci_uncapped\":{\"attacker_mean\":%.4f,\"attacker_sd\":%.4f,"
             "\"attacker_min\":%d,\"attacker_max\":%d,\"defender_mean\":%.4f,"
-            "\"defender_sd\":%.4f},\"all_pass\":%s}\n",
+            "\"defender_sd\":%.4f},",
             r.contact_count, r.damage_min, r.damage_max, r.damage_mean, r.damage_sd, r.damage_p50,
             r.damage_p99, r.damage_mean_per_swing, r.rage_att_mean_deci, r.rage_att_sd_deci,
-            r.rage_att_min_deci, r.rage_att_max_deci, r.rage_def_mean_deci, r.rage_def_sd_deci,
-            r.all_pass ? "true" : "false");
+            r.rage_att_min_deci, r.rage_att_max_deci, r.rage_def_mean_deci, r.rage_def_sd_deci);
+    write_yellow_json(f, "yellow_ms", yms);
+    fputc(',', f);
+    write_yellow_json(f, "yellow_hs", yhs);
+    fprintf(f, ",\"all_pass\":%s}\n",
+            (r.all_pass && yms.all_pass && yhs.all_pass) ? "true" : "false");
 }
 
 } // namespace
@@ -105,6 +149,12 @@ int main(int argc, char** argv) {
     }
 
     const DistReport r = run_distribution(sc, seed, n);
+    // Yellow coverage (M5): MS-parameterized and HS-parameterized attacks
+    // through the M-012 pipeline; constants from sim/mechanics/abilities.h.
+    const YellowDistReport yms =
+        run_yellow_distribution(sc, seed, n, /*normalized=*/true, MS_FLAT_BONUS);
+    const YellowDistReport yhs =
+        run_yellow_distribution(sc, seed, n, /*normalized=*/false, HS_FLAT_BONUS);
 
     printf("scenario %s, seed %" PRIu64 ", N=%" PRIu64 " swings, facing=%s, 99%% binomial CI\n",
            sc.name.c_str(), seed, r.n, r.facing == FacingClass::Front ? "front" : "behind");
@@ -124,7 +174,10 @@ int main(int argc, char** argv) {
            "defender mean %.2f sd %.2f\n",
            r.rage_att_mean_deci, r.rage_att_sd_deci, r.rage_att_min_deci, r.rage_att_max_deci,
            r.rage_def_mean_deci, r.rage_def_sd_deci);
-    printf("overall: %s\n", r.all_pass ? "PASS" : "FAIL");
+    print_yellow("ms", yms);
+    print_yellow("hs", yhs);
+    const bool all_pass = r.all_pass && yms.all_pass && yhs.all_pass;
+    printf("overall: %s\n", all_pass ? "PASS" : "FAIL");
 
     if (json_path) {
         FILE* jf = fopen(json_path, "w");
@@ -132,10 +185,10 @@ int main(int argc, char** argv) {
             fprintf(stderr, "arena_dist: cannot open %s\n", json_path);
             return 1;
         }
-        write_json(jf, sc, scenario_path, seed, r);
+        write_json(jf, sc, scenario_path, seed, r, yms, yhs);
         fclose(jf);
     } else {
-        write_json(stdout, sc, scenario_path, seed, r);
+        write_json(stdout, sc, scenario_path, seed, r, yms, yhs);
     }
-    return r.all_pass ? 0 : 1;
+    return all_pass ? 0 : 1;
 }

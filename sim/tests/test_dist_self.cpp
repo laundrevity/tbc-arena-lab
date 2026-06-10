@@ -82,3 +82,45 @@ TEST_CASE("dist self-test (RNG+table sampling, not external fidelity): m0_behind
                                            sc.defender);
     CHECK(r.damage_min == min_hit);
 }
+
+// --- Yellow (M-012) self-tests, M5 harness item ---
+
+TEST_CASE("yellow dist self-test: m0_front_shield N=1e6, MS and HS params") {
+    const Scenario sc = load("m0_front_shield.yaml");
+    for (const bool normalized : {true, false}) {
+        const int32_t flat = normalized ? MS_FLAT_BONUS : HS_FLAT_BONUS;
+        const YellowDistReport y = run_yellow_distribution(sc, 9003, N, normalized, flat);
+        CHECK(y.facing == FacingClass::Front);
+        for (const YellowRateRow& row : y.rows) {
+            CAPTURE(row.name);
+            CHECK(row.pass);
+        }
+        CHECK(y.all_pass);
+        // Front + shield: the partial-block row must be live (non-zero
+        // expectation) — blocked crits exist by construction (M-012/D-010
+        // does not apply to yellows).
+        CHECK(y.block_pm > 0);
+        CHECK(y.hit_count > 0);
+        // Damage extremes bracket the closed-form pipeline bounds.
+        const int32_t lo = resolve_yellow_damage(sc.attacker.weapon_min, false, true,
+                                                 sc.attacker, sc.defender, normalized, flat);
+        const int32_t hi = resolve_yellow_damage(sc.attacker.weapon_max, true, false,
+                                                 sc.attacker, sc.defender, normalized, flat);
+        CHECK(y.damage_min >= lo);
+        CHECK(y.damage_max <= hi);
+    }
+}
+
+TEST_CASE("yellow dist self-test: m0_behind N=1e6 (dodge/parry/block gated off)") {
+    const Scenario sc = load("m0_behind.yaml");
+    const YellowDistReport y = run_yellow_distribution(sc, 9004, N, true, MS_FLAT_BONUS);
+    CHECK(y.facing == FacingClass::Behind);
+    CHECK(y.all_pass);
+    // Behind: only miss|hit on the die, and no partial block.
+    CHECK(y.rows[1].expected_pm == 0);  // dodge does not apply from behind
+    CHECK(y.rows[1].count == 0);
+    CHECK(y.rows[2].expected_pm == 0);  // parry is frontal-only
+    CHECK(y.rows[2].count == 0);
+    CHECK(y.block_pm == 0);
+    CHECK(y.rows[5].count == 0);
+}

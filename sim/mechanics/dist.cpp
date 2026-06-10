@@ -138,4 +138,112 @@ DistReport run_distribution(const Scenario& sc, uint64_t seed, uint64_t n) {
     return rep;
 }
 
+YellowDistReport run_yellow_distribution(const Scenario& sc, uint64_t seed, uint64_t n,
+                                         bool normalized, int32_t flat_bonus) {
+    const UnitSpec& att = sc.attacker;
+    const UnitSpec& def = sc.defender;
+
+    YellowDistReport rep;
+    rep.n = n;
+    rep.normalized = normalized;
+    rep.flat_bonus = flat_bonus;
+    rep.facing = mutual_frontal_arc(def.pos_x_cm, def.pos_y_cm, def.facing_mrad, att.pos_x_cm,
+                                    att.pos_y_cm, att.facing_mrad)
+                     ? FacingClass::Front
+                     : FacingClass::Behind;
+    rep.table = build_yellow_table(att, def, rep.facing);
+    rep.crit_pm = std::min(chance_crit_pm(att, def), 10000);
+    const bool can_block = rep.facing == FacingClass::Front && def.has_shield;
+    rep.block_pm = can_block ? std::min(chance_block_pm(att, def), 10000) : 0;
+
+    uint64_t outcome_counts[4] = {};
+    uint64_t crit_count = 0, block_count = 0;
+    uint64_t dmg_sum = 0, dmg_sq = 0;
+    uint64_t rd_sum = 0, rd_sq = 0;
+    bool first_hit = true;
+
+    RngCursor cursor;
+    for (uint64_t i = 0; i < n; ++i) {
+        const YellowResult yr =
+            resolve_yellow(att, def, rep.facing, seed, cursor, normalized, flat_bonus);
+        ++outcome_counts[static_cast<size_t>(yr.outcome)];
+        rd_sum += static_cast<uint64_t>(yr.rage_defender_deci);
+        rd_sq += static_cast<uint64_t>(yr.rage_defender_deci) *
+                 static_cast<uint64_t>(yr.rage_defender_deci);
+        if (yr.outcome != YellowOutcome::Hit) continue;
+        ++rep.hit_count;
+        if (yr.crit) ++crit_count;
+        if (yr.blocked) ++block_count;
+        dmg_sum += static_cast<uint64_t>(yr.damage);
+        dmg_sq += static_cast<uint64_t>(yr.damage) * static_cast<uint64_t>(yr.damage);
+        if (first_hit || yr.damage < rep.damage_min) rep.damage_min = yr.damage;
+        if (first_hit || yr.damage > rep.damage_max) rep.damage_max = yr.damage;
+        first_hit = false;
+    }
+
+    // Expected widths from the sim's own builder (self-test semantics, same
+    // as the white path: validates RNG + sampling against the builder).
+    const int32_t widths[4] = {
+        rep.table.miss_end,
+        rep.table.dodge_end - rep.table.miss_end,
+        rep.table.parry_end - rep.table.dodge_end,
+        10000 - rep.table.parry_end,
+    };
+    static const char* names[4] = {"miss", "dodge", "parry", "hit"};
+    rep.all_pass = true;
+    for (size_t i = 0; i < 4; ++i) {
+        YellowRateRow& row = rep.rows[i];
+        row.name = names[i];
+        row.expected_pm = widths[i];
+        row.trials = n;
+        row.count = outcome_counts[i];
+        const double nd = static_cast<double>(n);
+        row.expected_rate = static_cast<double>(widths[i]) / 10000.0;
+        row.observed_rate = static_cast<double>(row.count) / nd;
+        row.ci_half_width =
+            DIST_Z99 * std::sqrt(row.expected_rate * (1.0 - row.expected_rate) / nd);
+        row.pass = row.expected_pm == 0
+                       ? row.count == 0
+                       : std::fabs(row.observed_rate - row.expected_rate) <= row.ci_half_width;
+        rep.all_pass = rep.all_pass && row.pass;
+    }
+    const auto conditional_row = [&](size_t idx, const char* name, int32_t expected_pm,
+                                     uint64_t count) {
+        YellowRateRow& row = rep.rows[idx];
+        row.name = name;
+        row.expected_pm = expected_pm;
+        row.trials = rep.hit_count;
+        row.count = count;
+        const double hd = static_cast<double>(rep.hit_count);
+        row.expected_rate = static_cast<double>(expected_pm) / 10000.0;
+        row.observed_rate = rep.hit_count ? static_cast<double>(count) / hd : 0.0;
+        row.ci_half_width =
+            rep.hit_count
+                ? DIST_Z99 * std::sqrt(row.expected_rate * (1.0 - row.expected_rate) / hd)
+                : 0.0;
+        row.pass = expected_pm == 0
+                       ? count == 0
+                       : std::fabs(row.observed_rate - row.expected_rate) <= row.ci_half_width;
+        rep.all_pass = rep.all_pass && row.pass;
+    };
+    conditional_row(4, "crit|hit", rep.crit_pm, crit_count);
+    conditional_row(5, "block|hit", rep.block_pm, block_count);
+
+    const auto sample_sd = [](uint64_t sum, uint64_t sq_sum, uint64_t count) {
+        if (count < 2) return 0.0;
+        const double mean = static_cast<double>(sum) / static_cast<double>(count);
+        const double var =
+            (static_cast<double>(sq_sum) - mean * mean * static_cast<double>(count)) /
+            static_cast<double>(count - 1);
+        return var > 0 ? std::sqrt(var) : 0.0;
+    };
+    rep.damage_mean = rep.hit_count
+                          ? static_cast<double>(dmg_sum) / static_cast<double>(rep.hit_count)
+                          : 0.0;
+    rep.damage_sd = sample_sd(dmg_sum, dmg_sq, rep.hit_count);
+    rep.rage_def_mean_deci = n ? static_cast<double>(rd_sum) / static_cast<double>(n) : 0.0;
+    rep.rage_def_sd_deci = sample_sd(rd_sum, rd_sq, n);
+    return rep;
+}
+
 } // namespace arena

@@ -33,6 +33,10 @@ enum class RngSubsystem : uint32_t {
     yellow_crit   = 5,  // ability crit roll, consumed on hit only (M-012)
     yellow_block  = 6,  // ability partial-block roll, consumed on hit only (M-012)
     yellow_damage = 7,  // ability weapon damage roll, consumed on hit only (M-012)
+    oracle_yellow_table  = 8,   // arena_diff yellow oracle MC, avoidance die
+    oracle_yellow_crit   = 9,   // arena_diff yellow oracle MC, crit roll
+    oracle_yellow_block  = 10,  // arena_diff yellow oracle MC, block roll
+    oracle_yellow_damage = 11,  // arena_diff yellow oracle MC, weapon roll
 };
 
 } // namespace arena
