@@ -51,7 +51,13 @@ Implications kept in view (but not built early):
   resumable MatchEngine (run_match is a wrapper over it — one
   implementation), C ABI shared library, pure-ctypes Python package, parity
   + determinism + trace-round-trip tests, throughput recorded.
-- **M5 — DECIDED with the owner (2026-06-10): self-play bring-up.** Purpose:
+- **M5 — DONE (2026-06-10): self-play bring-up.** Outcome: substrate
+  validated (learning works; interface and determinism held under ~50M env
+  steps; yellow differential coverage shipped and passing), but the pinned
+  pass criterion was NOT met — two full-N candidates each fail one
+  different condition; the open problem is robustness-vs-specialization
+  (findings F1–F4, results and M6 recommendations in
+  `docs/m5_selfplay.md`). Original scope follows:
   produce the first evidence that the substrate actually trains — nothing has
   been learned against this env yet, and observation/action/reward design
   errors get more expensive with every mechanic stacked on top. Scope:

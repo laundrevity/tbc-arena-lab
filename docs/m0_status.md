@@ -5,6 +5,29 @@ replay-verified, `arena_dist` self-test PASSes at N=10^6 for both scenarios,
 throughput recorded in `docs/benchmarks.md` (~1.5e6 swings/sec, ~5.4e6×
 realtime, single core).
 
+**Session 7 complete (same date): M5 — self-play bring-up.** Full record in
+`docs/m5_selfplay.md`. The substrate trains: numpy-only PPO self-play
+(`python/train/`, manual gradients FD-checked to 8.9e-8, bit-reproducible,
+resumable) reaches scripted-level play from random init; the 20M-sample
+candidate strictly beats ScriptedPolicy as slot 1 (+0.56%, CI [+0.10,
++1.02]%, N=10^4) — but the pinned pass criterion is NOT met: each of two
+full-N candidates fails exactly one (different) condition, the second on
+idle-robustness (specialization trade-off, finding F4). Reported as FAIL
+per rule 6; no rerolling. Findings F1–F4: m2_duel@60s/25k-hp is 94%
+draw-dominant (fixture `m5_duel.yaml` added: 10k hp, 180 s, 100%
+death-decided, owner-approved); absolute pass bars need feasibility checks
+against a reference policy (the original vs-Idle bar was unsatisfiable for
+slot 1 by ANY policy — scripted itself scores 0.502 there); pure self-play
+overfits its own distribution (opponent_mix added); robustness-vs-strength
+is the open M6 problem. Zero illegal actions in ~20M training decisions and
+68k eval matches; ctest gains `python_train`. **Yellow differential
+coverage shipped**: `arena_dist`/`arena_diff` now validate the M-012
+avoidance die, separate crit/block rolls, crit-before-armor damage (D-020)
+and M-016 victim rage against an oracle yellow model
+(`sim/oracle/run_yellow_mc`, cited per the M-012 audit); all four fixtures
+PASS at N=10^6; D-019 (victim rage on spells) quantified at ≈72–74
+deci/attack. M0–M2 goldens remain byte-identical (sim runtime untouched).
+
 **Session 6 complete (same date): M4 — Python bindings.** `run_match`'s
 loop became the resumable `MatchEngine` (construct -> observe -> step), with
 run_match now a thin Policy-driving wrapper — one implementation, parity

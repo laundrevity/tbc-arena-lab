@@ -32,6 +32,11 @@ STRICT rows decide the exit code (0 iff all pass):
 | `damage.mean` | two-sample z ≤ 2.576 vs oracle MC |
 | `damage.min/max` | within ±2 (discrete vs truncated-continuous rolls, D-004/D-014) |
 | `rage_att/def.mean(ours-basis)` | two-sample z ≤ 2.576 vs oracle ARITHMETIC applied under our conventions (contact-only, post-block damage) — validates the integer port of M-006 |
+| `ytable_pm.yellow_{ms,hs}.*` | yellow avoidance-die widths (M-012), exact per-myriad, sim vs oracle `MeleeSpellHitResult` model |
+| `ychance_pm.yellow_{ms,hs}.{crit,block}` | separate-roll chances on hit, exact per-myriad |
+| `yrate.yellow_{ms,hs}.*` | observed die outcomes (over N) and crit\|hit / block\|hit (over hits) vs oracle rates, 99% binomial CI; zero-width ranges must have zero observations |
+| `ydamage.yellow_{ms,hs}.mean/min/max` | hits-only damage vs oracle yellow MC (crit-before-armor float pipeline, D-020); z ≤ 2.576 / ±2 |
+| `yrage_def.yellow_{ms,hs}.mean(ours-basis)` | victim rage from ability damage (M-016) vs oracle arithmetic on our basis, z ≤ 2.576 |
 
 INFO rows never fail; they quantify ledgered divergences:
 
@@ -39,6 +44,14 @@ INFO rows never fail; they quantify ledgered divergences:
 |---|---|
 | `rage_att.mean(oracle-true)` | oracle's actual attacker rage incl. rage on miss (D-011), doubled clean damage on dodge/parry (D-012), pre-block+blocked basis on block (D-013) |
 | `rage_def.mean(oracle-true)` | oracle's victim rage incl. the D-013 block basis |
+| `yrage_def.yellow_*.mean(oracle-true)` | the oracle grants NO victim rage on the spell path (D-019); always 0 vs our M-016 value |
+
+Yellow coverage added 2026-06-10 (M5): all four fixtures (m0_front_shield,
+m0_behind, m2_duel, m5_duel) PASS the extended harness at N=10^6, including
+the behind-facing gates (dodge/parry/block zero-width with zero
+observations) and blocked-crit existence on the front fixtures. The D-019
+victim-rage divergence measures ≈72.6 (MS) / 74.1 (HS) deci per attack on
+m0_front_shield — entirely our retail-style grant; the oracle's is zero.
 
 Recorded magnitudes at N=10^6 (2026-06-10, both scenarios PASS):
 m0_front_shield oracle-true attacker rage ≈ 205.9 deci/swing vs ours 165.4

@@ -473,6 +473,10 @@ the spell path never enters.
 
 **tests:** `test_abilities.cpp` — avoid-die widths front/behind; fixed-input
 yellow damage pipeline incl. blocked crit; zero glance/crush by construction.
+M5 adds: `test_dist_self.cpp` yellow self-distributions at N=10^6 (front +
+behind gating); `test_oracle_model.cpp` oracle yellow table/chance equality
+and MC determinism; `arena_dist`/`arena_diff` yellow rows PASS at N=10^6 on
+all four fixtures (docs/differential_harness.md).
 
 ---
 
