@@ -27,6 +27,8 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 add_compile_options(-Wall -Wextra -Werror)
+# Static archives are linked into the arena_env shared library.
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Embedded commit id for trace headers; stale until reconfigure, see docs/m0_status.md.
 execute_process(
@@ -69,6 +71,10 @@ endforeach()
 add_executable(arena_diff tools/arena_diff.cpp)
 target_link_libraries(arena_diff PRIVATE arena_oracle)
 
+# C ABI for external drivers (Python ctypes wrapper in python/tbc_arena).
+add_library(arena_env SHARED sim/env/arena_c_api.cpp)
+target_link_libraries(arena_env PRIVATE arena_mechanics)
+
 enable_testing()
 add_executable(arena_tests
   sim/tests/test_main.cpp
@@ -82,8 +88,17 @@ add_executable(arena_tests
   sim/tests/test_oracle_model.cpp
   sim/tests/test_parry_haste.cpp
   sim/tests/test_abilities.cpp
-  sim/tests/test_observation.cpp)
+  sim/tests/test_observation.cpp
+  sim/tests/test_engine.cpp)
 target_link_libraries(arena_tests PRIVATE arena_oracle)
 target_include_directories(arena_tests PRIVATE ${CMAKE_SOURCE_DIR}/third_party)
 target_compile_definitions(arena_tests PRIVATE REPO_ROOT="${CMAKE_SOURCE_DIR}")
 add_test(NAME arena_tests COMMAND arena_tests)
+
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+  add_test(NAME python_env
+           COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/python/tests/test_env.py)
+  set_tests_properties(python_env PROPERTIES
+    ENVIRONMENT "TBC_ARENA_LIB=$<TARGET_FILE:arena_env>;TBC_ARENA_ROOT=${CMAKE_SOURCE_DIR}")
+endif()

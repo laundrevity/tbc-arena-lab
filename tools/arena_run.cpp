@@ -27,6 +27,7 @@
 #include "sim/core/trace.h"
 #include "sim/mechanics/match.h"
 #include "sim/mechanics/ruleset.h"
+#include "sim/mechanics/trace_sink.h"
 
 #ifndef SIM_COMMIT
 #define SIM_COMMIT "unknown"
@@ -36,27 +37,6 @@ using namespace arena;
 
 namespace {
 
-struct FileSink {
-    FILE* f;
-    void on_swing(const SwingRecord& r) {
-        trace_write_swing(f, r.t, r.seq, r.src, r.tgt, r.result.roll_pm,
-                          outcome_name(r.result.outcome), r.result.damage, r.src_rage_deci_after,
-                          r.tgt_rage_deci_after, r.tgt_hp_after);
-    }
-    void on_ability(const AbilityRecord& r) {
-        trace_write_ability(f, r.t, r.seq, r.src, r.tgt, r.ability, r.result.roll_pm,
-                            yellow_outcome_name(r.result.outcome), r.result.crit,
-                            r.result.blocked, r.result.damage, r.src_rage_deci_after,
-                            r.tgt_rage_deci_after, r.tgt_hp_after);
-    }
-    void on_decision(const DecisionRecord& r) {
-        trace_write_decision(f, r.t, r.unit, action_name(r.action));
-    }
-    void on_checkpoint(int64_t t, uint64_t h) { trace_write_checkpoint(f, t, h); }
-    void on_end(int64_t t, const char* reason, uint64_t swings, uint64_t checkpoints) {
-        trace_write_end(f, t, reason, swings, checkpoints);
-    }
-};
 
 int usage() {
     fprintf(stderr, "usage: arena_run <scenario.yaml> <seed> [--duration-ms N] [-o trace.jsonl]\n");
@@ -103,18 +83,8 @@ int main(int argc, char** argv) {
         }
     }
 
-    trace_write_header(f, SIM_COMMIT, ruleset_id(), ruleset_hash(), scenario_path, sc.name, seed,
-                       sc.duration_ms);
-
-    // Init line: state at t=0 in ascending entity_id order, plus its hash.
-    const UnitSpec* specs[2] = {&sc.attacker, &sc.defender};
-    if (specs[0]->entity_id > specs[1]->entity_id) std::swap(specs[0], specs[1]);
-    int32_t ids[2] = {specs[0]->entity_id, specs[1]->entity_id};
-    UnitState init[2] = {initial_state(*specs[0]), initial_state(*specs[1])};
-    std::vector<uint8_t> buf;
-    trace_write_init(f, hash_units(buf, ids, init, 2), ids, init, 2);
-
-    FileSink sink{f};
+    write_trace_prologue(f, SIM_COMMIT, sc, seed);
+    TraceFileSink sink{f};
     run_match(sc, seed, sink);
 
     if (out_path) fclose(f);

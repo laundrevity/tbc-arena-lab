@@ -70,8 +70,11 @@ ReplayResult verify_trace_file(const std::string& trace_path, const std::string&
         return res;
     }
 
+    // Absolute paths (e.g. from externally driven envs) are used as-is.
     const std::string scenario_path =
-        base_dir.empty() ? scenario_rel : base_dir + "/" + scenario_rel;
+        (base_dir.empty() || (!scenario_rel.empty() && scenario_rel[0] == '/'))
+            ? scenario_rel
+            : base_dir + "/" + scenario_rel;
     Scenario sc;
     std::string err;
     if (!load_scenario(scenario_path, sc, err)) {
