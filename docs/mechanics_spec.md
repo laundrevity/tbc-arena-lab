@@ -399,3 +399,174 @@ as it is uniform).
 
 **tests:** `test_rng.cpp` pinned outputs for fixed tuples (stream-stability
 canary); bounded-roll range checks; `arena_dist` self-test at N=10^6.
+
+---
+
+## M-011 Global cooldown
+
+**Formula.** Each unit owns `gcd_ready_ms` (`int64`, authoritative, hashed).
+An ability with `gcd_ms > 0` requires `now >= gcd_ready_ms` to cast and sets
+`gcd_ready_ms = now + gcd_ms` at cast start. Pinned values: Mortal Strike
+1500 ms; Heroic Strike 0 (on-next-swing abilities are off-GCD: queueing
+neither requires nor triggers the GCD). No haste scaling in M2.
+
+**source_status:** `emulator_reference` for the mechanism — cmangos-tbc @
+009455e, `WorldObject::AddGCD` (Object.cpp:2674–2681: GCD = spell data
+`StartRecoveryTime`, applied at cast start, Spell.cpp:3180; zero means no
+GCD). `secondary` for the per-spell values (DBC-derived community data; no
+client data in this repo): MS `StartRecoveryTime` 1500, HS 0.
+`TODO(verify)` HS rank 10 / MS rank 6 spell data against a clean DBC dump.
+
+**tests:** `test_abilities.cpp` — MS never recast inside its GCD window in a
+scripted match; HS queue/fire independent of GCD state.
+
+---
+
+## M-012 Weapon-ability hit resolution (yellow attacks)
+
+**Formula.** Three independent keyed rolls (subsystems `yellow_table`,
+`yellow_crit`, `yellow_block`; per-use counters as in M-009):
+
+1. **Avoidance die** — one per-myriad roll over
+   `miss | dodge | parry | hit(remainder)`:
+   - miss = white miss (M-001) WITHOUT the dual-wield penalty (n/a in M2);
+     floor 0 vs equal-level players.
+   - dodge/parry = white formulas (M-001), gated by the mutual facing check
+     (M-008). NO block side: normal strikes (MS/HS lack
+     `SPELL_ATTR_EX3_COMPLETELY_BLOCKED`) cannot be fully blocked.
+     No glancing/crushing on abilities, ever.
+2. **Crit roll** (only on hit) — chance = white crit (M-001: `crit_pm` +
+   level-capped skill delta), independent per-myriad roll. Multiplier 2.0
+   (M-003 applies to melee-class abilities).
+3. **Partial block roll** (only on hit, after damage) — chance = white block
+   (M-001), gated shield + mutual facing; on success subtract `block_value`,
+   floored at 0. Blocked crits are therefore possible for yellows.
+
+Damage pipeline (integer, floors documented in D-004):
+
+```
+base   = flat_bonus + uniform_int[weapon_min, weapon_max] + ap_bonus(M-013)
+crit   ⇒ base *= 2          // BEFORE armor for yellows (opposite of M-003)
+damage = apply_armor(base)   // M-004, incl. min-1 floor
+block  ⇒ damage = max(0, damage - block_value)
+```
+
+A parried ability does NOT trigger parry-haste (M-010 is the white-swing
+path only).
+
+**source_status:** `emulator_reference` — cmangos-tbc @ 009455e:
+avoidance die `Unit::MeleeSpellHitResult` (Unit.cpp:2958–2998); ability gates
+`CanDodgeAbility`/`CanParryAbility` (Unit.cpp:3271–3310); melee-ability miss
+delegates to the white calc (Unit.cpp:4070–4071); separate crit roll
+Spell.cpp:1673 → `CalculateEffectiveCritChance` (Unit.cpp:4044); crit-then-
+armor order Spell.cpp:1284–1296; partial block
+`RollAbilityPartialBlockOutcome` (Unit.cpp:3565–3571) applied in
+`CalculateAbsorbResistBlock` (Unit.cpp:2704–2710) after armor; full/partial
+block attribute split documented in `CanBlockAbility` (Unit.cpp:3520–3545).
+parry-haste white-only: it lives in `DealMeleeDamage` (Unit.cpp:2277), which
+the spell path never enters.
+
+**known_uncertainties:**
+- Crit-before-armor vs white's armor-before-crit commutes up to flooring
+  (≤1 damage); both orders are ported faithfully per path (D-004).
+- `TODO(verify)` vs Anniversary TBC 2.5.x (D-003).
+
+**tests:** `test_abilities.cpp` — avoid-die widths front/behind; fixed-input
+yellow damage pipeline incl. blocked crit; zero glance/crush by construction.
+
+---
+
+## M-013 Normalized weapon damage
+
+**Formula.** Ability AP contribution uses a NORMALIZED speed instead of the
+equipped weapon's speed: `ap_bonus = floor(AP * weapon_norm_ms / 14000)` with
+`weapon_norm_ms` pinned per scenario unit: 3300 (two-hand), 2400 (one-hand /
+fist), 1700 (dagger), 2800 (ranged, unused). Non-normalized abilities
+(Heroic Strike) use the real `weapon_speed_ms` exactly as M-002.
+
+**source_status:** `emulator_reference` — cmangos-tbc @ 009455e,
+`Unit::GetAPMultiplier` (Unit.cpp:10990–11013); the normalized flag enters
+the same min/max assembly as M-002 (StatSystem.cpp:357–418).
+
+**tests:** `test_abilities.cpp` fixed inputs (AP 2800, norm 3300 ⇒ 660).
+
+---
+
+## M-014 Mortal Strike (rank 6)
+
+**Formula.** Instant weapon strike: costs 300 deci-rage, 6000 ms own
+cooldown (`ms_ready_ms`, hashed), triggers the 1500 ms GCD (M-011). Damage:
+normalized weapon damage (M-013) + 210 flat, resolved per M-012. The Mortal
+Wounds healing-reduction debuff is NOT modeled (no healing exists in the
+sim; revisit when healing lands).
+
+**source_status:** `secondary` — spell 30330 (Mortal Strike rank 6) values
+(30 rage, 6 s cooldown, +210 damage) are DBC-derived community constants,
+hand-authored here (no client data in repo). Mechanism citations per
+M-011/M-012/M-013. `TODO(verify)` rank values vs a clean DBC dump and vs
+Anniversary 2.5.x.
+
+**tests:** `test_abilities.cpp` — cooldown spacing ≥ 6000 ms in a scripted
+match; cost deducted on every cast including misses (M-016); fixed-input
+damage.
+
+---
+
+## M-015 Heroic Strike (rank 10)
+
+**Formula.** On-next-swing attack: queueing is free and off-GCD
+(`hs_queued`, hashed). At the unit's next main-hand swing: if
+`rage >= 150 deci`, the swing is REPLACED by a yellow attack (M-012) with
+NON-normalized weapon damage + 176 flat; 150 deci-rage is paid at that
+moment; the queue clears. If rage is insufficient at swing time, the queue
+clears and a normal white swing (M-001/M-002) resolves instead. Either way
+the swing timer advances by `weapon_speed_ms` as usual. A swing replaced by
+Heroic Strike generates NO attacker swing rage (it is a spell, M-016).
+
+**source_status:** `emulator_reference` for the replace-or-fallback
+mechanism — cmangos-tbc @ 009455e `Unit::AttackerStateUpdate`
+(Unit.cpp:2740–2750: pending CURRENT_MELEE_SPELL casts at main-hand swing;
+on cast failure falls through to the white swing). `secondary` for spell
+30324 (rank 10) values (+176 damage, 15 rage, off-GCD). `TODO(verify)` rank
+values vs DBC; queue-cancel-on-low-rage timing vs real client behavior
+(the client also unqueues on rage drop below cost; we only check at swing).
+
+**tests:** `test_abilities.cpp` — queue-fire-replace semantics; fallback to
+white when rage is short; off-GCD queueing.
+
+---
+
+## M-016 Ability resource accounting
+
+**Formula.**
+- Full rage cost is consumed at execution for every cast, INCLUDING misses,
+  dodges and parries (no avoid-refund — that is a WotLK 3.0 change).
+- Ability damage generates NO attacker rage (the white-swing hit-factor
+  formula M-006 does not apply to spells).
+- Ability damage DOES generate victim rage: `2.5 * D / c` deci (M-006
+  defender form, post-mitigation D) — a DELIBERATE divergence from the
+  oracle, which lacks any victim-rage path for spell damage (ledger D-019):
+  retail-TBC victims observably gain rage from ability hits.
+
+**source_status:** `emulator_reference` for cost-regardless-of-outcome
+(cmangos-tbc @ 009455e `Spell::TakePower`, Spell.cpp:4566–4587 — no outcome
+check) and for no-attacker-rage (the `RewardRage` attacker path requires
+`damagetype == DIRECT_DAMAGE`, Unit.cpp:934; spells deal
+`SPELL_DIRECT_DAMAGE`). Victim-rage-from-abilities: `empirical` (retail
+behavior), diverges from oracle (D-019).
+
+**tests:** `test_abilities.cpp` — rage deltas around casts for hit and
+avoided outcomes; victim rage after MS hit.
+
+---
+
+## Policy knobs (not game formulas)
+
+Decision-making is pinned per scenario unit so matches stay deterministic
+and zero-RL (project plan M2): `use_mortal_strike` (cast MS whenever rage,
+cooldown and GCD allow) and `heroic_strike_min_rage_deci` (queue HS when
+rage reaches the threshold; 0 = never; loader enforces threshold >= cost
+when nonzero). Decision points are event-driven: policies re-evaluate after
+every state-changing event, plus at scheduled `Decide` wake-ups when an
+ability is blocked only by a known future time (GCD/cooldown end). At equal
+timestamps `Decide` precedes `Swing` (total order in `event_queue.h`).
