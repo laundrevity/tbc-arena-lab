@@ -48,6 +48,7 @@ std::string ruleset_manifest() {
     m += ";rage_hf=floor_f_times_speed_then_halve";  // spec M-006
     m += ";rage_cap_deci=" + std::to_string(RAGE_CAP_DECI);
     m += ";rage_on_avoid=none";  // ledger D-011/D-012
+    m += ";parry_haste=p20_floor_div5_windows_20_60";  // spec M-010
     m += ";frontal_arc=mutual_pi;pi_mrad=" + std::to_string(PI_MRAD);
     return m;
 }

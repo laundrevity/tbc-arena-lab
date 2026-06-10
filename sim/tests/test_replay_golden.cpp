@@ -29,7 +29,7 @@ using namespace arena;
 // (CLAUDE.md testing rule 5). A failure here means either nondeterminism or
 // an undeclared mechanics change.
 TEST_CASE("replay: golden traces re-verify all hash checkpoints") {
-    for (const char* name : {"m0_front_shield.jsonl", "m0_behind.jsonl"}) {
+    for (const char* name : {"m0_front_shield.jsonl", "m0_behind.jsonl", "m1_mutual.jsonl"}) {
         CAPTURE(name);
         const ReplayResult r = verify_trace_file(
             std::string(REPO_ROOT) + "/sim/tests/golden_traces/" + name, REPO_ROOT);

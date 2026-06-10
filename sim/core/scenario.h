@@ -37,9 +37,10 @@ struct Scenario {
 // `key: value` pairs plus the `attacker:` / `defender:` sections with
 // two-space-indented `key: value` pairs, `#` comments. Every stat must be
 // pinned explicitly — any missing key is a load error (CLAUDE.md: no
-// defaults hidden in code). Levels other than 70 are rejected in M0: the
-// rage conversion constant is only defined for level 70 (spec M-006).
-// Returns false and fills `err` on failure; no exceptions.
+// defaults hidden in code). The attacker must attack; the defender may
+// (M1 mutual scenarios) or may not (M0 fixtures). Levels other than 70 are
+// rejected: the rage conversion constant is only defined for level 70
+// (spec M-006). Returns false and fills `err` on failure; no exceptions.
 bool load_scenario(const std::string& path, Scenario& out, std::string& err);
 
 } // namespace arena

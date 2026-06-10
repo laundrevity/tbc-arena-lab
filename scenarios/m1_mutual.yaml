@@ -1,0 +1,68 @@
+# This file is part of tbc-arena-lab.
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation; either version 2 of the License, or (at your option)
+# any later version. It is distributed WITHOUT ANY WARRANTY; see the GNU
+# General Public License (LICENSE) for details.
+#
+# M1 fixture: BOTH warriors auto-attack, facing each other in melee.
+# Exercises interleaved swing timers under the event total order,
+# parry-haste on both sides (spec M-010), rage on both sides, and
+# death-of-either-unit.
+#
+# Asymmetric loadouts on purpose:
+#   - attacker: slow two-hander (320-480 @ 3.60s), no shield
+#   - defender: one-hander (150-280 @ 2.60s) + shield (block vs the attacker
+#     only; the attacker has no shield so the reverse table has no block row)
+# All chances per-myriad; positions/facings mutual-frontal for both units.
+
+name: m1_mutual
+ruleset: anniversary-tbc-2.5.x
+duration_ms: 60000
+
+attacker:
+  entity_id: 1
+  level: 70
+  weapon_skill: 350
+  defense_skill: 350
+  attack_power: 2800
+  crit_pm: 2500
+  hit_pm: 0
+  weapon_min: 320
+  weapon_max: 480
+  weapon_speed_ms: 3600
+  armor: 6200
+  dodge_pm: 800
+  parry_pm: 600
+  block_pm: 500
+  block_value: 180
+  has_shield: false
+  attacks: true
+  max_hp: 25000
+  pos_x_cm: 200
+  pos_y_cm: 0
+  facing_mrad: 3142
+
+defender:
+  entity_id: 2
+  level: 70
+  weapon_skill: 350
+  defense_skill: 350
+  attack_power: 2800
+  crit_pm: 2500
+  hit_pm: 0
+  weapon_min: 150
+  weapon_max: 280
+  weapon_speed_ms: 2600
+  armor: 6200
+  dodge_pm: 800
+  parry_pm: 600
+  block_pm: 500
+  block_value: 180
+  has_shield: true
+  attacks: true
+  max_hp: 25000
+  pos_x_cm: 0
+  pos_y_cm: 0
+  facing_mrad: 0

@@ -204,10 +204,6 @@ bool load_scenario(const std::string& path, Scenario& out, std::string& err) {
         err = path + ": attacker must have attacks: true";
         return false;
     }
-    if (out.defender.attacks) {
-        err = path + ": defender must be idle (attacks: false) in M0";
-        return false;
-    }
     out.source_path = path;
     return true;
 }

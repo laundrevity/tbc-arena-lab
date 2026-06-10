@@ -56,7 +56,7 @@ bool identical(const CollectSink& a, const CollectSink& b) {
 } // namespace
 
 TEST_CASE("determinism: same scenario + seed twice produces identical traces") {
-    for (const char* name : {"m0_front_shield.yaml", "m0_behind.yaml"}) {
+    for (const char* name : {"m0_front_shield.yaml", "m0_behind.yaml", "m1_mutual.yaml"}) {
         CAPTURE(name);
         const Scenario sc = load(name);
         CollectSink a, b;

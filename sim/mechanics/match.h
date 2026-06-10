@@ -25,6 +25,7 @@
 #include "sim/core/fixed_trig.h"
 #include "sim/core/scenario.h"
 #include "sim/core/unit_state.h"
+#include "sim/mechanics/parry_haste.h"
 #include "sim/mechanics/swing.h"
 
 // Deterministic match runner. Authoritative time is int64 ms; no wall-clock
@@ -100,8 +101,9 @@ MatchResult run_match(const Scenario& sc, uint64_t seed, Sink&& sink) {
 
     auto index_of = [&](int32_t entity_id) { return entity_id == ids[0] ? 0 : 1; };
 
-    // Live events at any moment: one swing per attacker + checkpoint chain +
-    // match end. 16 is comfortably above that; reserved once, never grown.
+    // Live events at any moment: one swing per attacker (plus at most one
+    // stale superseded swing each, see M-007 lazy invalidation) + checkpoint
+    // chain + match end. 16 is comfortably above that; reserved once.
     EventQueue queue(16);
     std::vector<uint8_t> hash_buf;
     hash_buf.reserve(128);
@@ -141,6 +143,11 @@ MatchResult run_match(const Scenario& sc, uint64_t seed, Sink&& sink) {
             case EventKind::Swing: {
                 const int src = index_of(ev.source_id);
                 const int tgt = index_of(ev.target_id);
+                // Lazy invalidation (spec M-007): parry-haste retimes swings
+                // by pushing a new event; the superseded one no longer
+                // matches the authoritative ready-at and is skipped without
+                // consuming RNG or emitting trace events.
+                if (ev.time_ms != states[src].next_swing_ms) break;
                 const FacingClass facing =
                     mutual_frontal_arc(states[tgt].pos_x_cm, states[tgt].pos_y_cm,
                                        states[tgt].facing_mrad, states[src].pos_x_cm,
@@ -153,6 +160,18 @@ MatchResult run_match(const Scenario& sc, uint64_t seed, Sink&& sink) {
                 states[src].rage_deci = add_rage_deci(states[src].rage_deci, sw.rage_attacker_deci);
                 states[tgt].rage_deci = add_rage_deci(states[tgt].rage_deci, sw.rage_defender_deci);
                 states[src].next_swing_ms = ev.time_ms + specs[src]->weapon_speed_ms;
+                // Parry-haste (spec M-010): the parrying unit's own pending
+                // swing is accelerated, if it auto-attacks at all.
+                if (sw.outcome == Outcome::Parry && states[tgt].next_swing_ms >= 0) {
+                    const int64_t remaining = states[tgt].next_swing_ms - ev.time_ms;
+                    const int64_t hastened =
+                        parry_hastened_remaining(remaining, specs[tgt]->weapon_speed_ms);
+                    if (hastened != remaining) {
+                        states[tgt].next_swing_ms = ev.time_ms + hastened;
+                        queue.push(states[tgt].next_swing_ms, EventKind::Swing, ids[tgt],
+                                   ids[src]);
+                    }
+                }
                 ++res.swings;
 
                 SwingRecord rec;
