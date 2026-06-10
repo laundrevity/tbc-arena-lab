@@ -52,6 +52,12 @@ add_library(arena_mechanics STATIC
   sim/mechanics/replay.cpp)
 target_link_libraries(arena_mechanics PUBLIC arena_core)
 
+# Differential-harness oracle model (cited port of cmangos-tbc math, floats
+# allowed: diagnostic-only, never linked into sim/core or sim/mechanics).
+add_library(arena_oracle STATIC
+  sim/oracle/cmangos_model.cpp)
+target_link_libraries(arena_oracle PUBLIC arena_mechanics)
+
 add_executable(arena_run tools/arena_run.cpp)
 add_executable(arena_replay tools/arena_replay.cpp)
 add_executable(arena_dist tools/arena_dist.cpp)
@@ -59,6 +65,8 @@ add_executable(arena_bench tools/arena_bench.cpp)
 foreach(tool arena_run arena_replay arena_dist arena_bench)
   target_link_libraries(${tool} PRIVATE arena_mechanics)
 endforeach()
+add_executable(arena_diff tools/arena_diff.cpp)
+target_link_libraries(arena_diff PRIVATE arena_oracle)
 
 enable_testing()
 add_executable(arena_tests
@@ -69,8 +77,9 @@ add_executable(arena_tests
   sim/tests/test_damage_rage.cpp
   sim/tests/test_determinism.cpp
   sim/tests/test_replay_golden.cpp
-  sim/tests/test_dist_self.cpp)
-target_link_libraries(arena_tests PRIVATE arena_mechanics)
+  sim/tests/test_dist_self.cpp
+  sim/tests/test_oracle_model.cpp)
+target_link_libraries(arena_tests PRIVATE arena_oracle)
 target_include_directories(arena_tests PRIVATE ${CMAKE_SOURCE_DIR}/third_party)
 target_compile_definitions(arena_tests PRIVATE REPO_ROOT="${CMAKE_SOURCE_DIR}")
 add_test(NAME arena_tests COMMAND arena_tests)

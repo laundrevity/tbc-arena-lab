@@ -27,8 +27,8 @@ namespace arena {
 enum class RngSubsystem : uint32_t {
     swing_table   = 0,  // white-hit attack-table roll (spec M-001)
     weapon_damage = 1,  // weapon min..max damage roll (spec M-002)
-    reserved_2    = 2,
-    reserved_3    = 3,
+    oracle_table  = 2,  // arena_diff oracle-model Monte Carlo, table roll
+    oracle_damage = 3,  // arena_diff oracle-model Monte Carlo, damage roll
 };
 
 } // namespace arena
