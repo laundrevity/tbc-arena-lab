@@ -42,8 +42,14 @@ Implications kept in view (but not built early):
   crit and partial-block rolls), full-cost-on-avoid, deterministic policy
   knobs pinned per scenario (decisions exist; RL still out). Specs
   M-011..M-016.
-- **M3+ — TBD with the owner.** Candidates, unordered: dual-wield; stances +
-  more abilities (rage sinks with tradeoffs); movement/chase/leeway;
-  observation & action-space spec; Python bindings; self-play harness;
-  live-oracle capture (instrumented cmangos server); Anniversary 2.5.x
-  evidence pass (D-003); yellow-attack differential coverage in arena_diff.
+- **M3 — DONE (2026-06-10).** Observation & action-space spec
+  (`docs/observation_action_spec.md`): client-parity integer observations,
+  action masks from observations alone, fixed decision ticks with
+  simultaneous-move snapshots, Policy interface (idle/scripted/playback),
+  decision tracing + bit-exact action playback (imitation substrate).
+- **M4+ — TBD with the owner.** Candidates, unordered: Python bindings over
+  the M3 interface (the natural next step toward self-play); dual-wield;
+  stances + more abilities (richer decision space); movement/chase/leeway;
+  self-play harness; live-oracle capture (instrumented cmangos server);
+  Anniversary 2.5.x evidence pass (D-003); yellow-attack differential
+  coverage in arena_diff; combat-log observation windows.

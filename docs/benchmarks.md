@@ -62,3 +62,22 @@ halves vs M1: each combat event now also runs policy evaluation, and MS adds
 Decide wake-ups plus three extra keyed rolls per cast. Per-1v1-match cost is
 still ~25 µs of wall time per simulated minute — far above any M-target; no
 optimization warranted (CLAUDE.md workflow).
+
+### 2026-06-10 — M3 observation/action interface (commit 92ea56c+)
+
+- Same hardware/compiler/flags as above.
+- Command: `arena_bench scenarios/m2_duel.yaml --seconds 3` (100 ms decision ticks)
+
+| metric | 60 s matches |
+|---|---|
+| simulated-ms per wall-ms | 627,754 |
+| swings/sec | 2.48e5 |
+| abilities/sec | 2.85e5 |
+| checkpoints/sec | 6.28e5 |
+
+Decision ticks dominate the event count now: 10 ticks/sim-second, each
+building two observations and running two policies (virtual dispatch).
+~4x drop vs M2 as expected; still ~6e5x realtime per core — a full 60 s
+duel costs ~0.1 ms of wall time. Pure auto-attack scenarios skip the tick
+chain entirely and keep their M1-era throughput. No optimization
+warranted (CLAUDE.md workflow).

@@ -562,11 +562,12 @@ avoided outcomes; victim rage after MS hit.
 
 ## Policy knobs (not game formulas)
 
-Decision-making is pinned per scenario unit so matches stay deterministic
-and zero-RL (project plan M2): `use_mortal_strike` (cast MS whenever rage,
-cooldown and GCD allow) and `heroic_strike_min_rage_deci` (queue HS when
-rage reaches the threshold; 0 = never; loader enforces threshold >= cost
-when nonzero). Decision points are event-driven: policies re-evaluate after
-every state-changing event, plus at scheduled `Decide` wake-ups when an
-ability is blocked only by a known future time (GCD/cooldown end). At equal
-timestamps `Decide` precedes `Swing` (total order in `event_queue.h`).
+Superseded in M3 by the observation/action interface — see
+`docs/observation_action_spec.md` (normative). Decisions happen on fixed
+per-scenario decision ticks (`Decide` events; at equal timestamps `Decide`
+precedes `Swing`, total order in `event_queue.h`); scenario units pin a
+loadout (`knows_mortal_strike`, `knows_heroic_strike`) and a policy
+(`idle | scripted`, with `scripted_hs_min_rage_deci` as the scripted knob;
+loader enforces threshold >= cost when nonzero). The M2 event-driven
+evaluation (instant reflexes) was replaced by tick-quantized decisions —
+agents and scripted baselines react at tick granularity.

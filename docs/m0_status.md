@@ -5,6 +5,24 @@ replay-verified, `arena_dist` self-test PASSes at N=10^6 for both scenarios,
 throughput recorded in `docs/benchmarks.md` (~1.5e6 swings/sec, ~5.4e6×
 realtime, single core).
 
+**Session 5 complete (same date): M3 — observation/action interface.** The
+RL-facing decision substrate per `docs/observation_action_spec.md`
+(normative): client-parity observations (integer-only, canonical
+serialization; enemy cooldowns/swing timer hidden, enemy HP as fraction,
+enemy rage visible), a 4-action space with masks derivable from the
+observation alone, fixed decision ticks (100 ms in fixtures; simultaneous
+-move snapshots, entity-order application, illegal submissions degrade to
+None and are counted), and the `Policy` interface (`Idle`, `Scripted`,
+`Playback`). M2's event-driven scripted reflexes became tick-quantized
+ScriptedPolicy decisions — same knobs, reaction latency at tick resolution;
+`next_decide_ms` left authoritative state (state_v=2). Decisions are traced
+(`decision` lines; un-logged tick = None) and verified by replay; the
+playback round-trip test (record -> PlaybackPolicy -> bit-exact checkpoints)
+is the imitation-learning substrate. Scenario schema: `decision_tick_ms`,
+`knows_*` loadout, `policy`, `scripted_hs_min_rage_deci`. M0/M1 combat
+event streams remain byte-identical; throughput ~6.3e5x realtime with ticks
+(tick-free scenarios keep M1-era speed).
+
 **Session 4 complete (same date): M2 — first abilities + GCD.** Mortal
 Strike (instant, 6 s cooldown, 30 rage, normalized weapon damage + 210,
 specs M-013/M-014) and Heroic Strike (on-next-swing, off-GCD, +176, M-015)
