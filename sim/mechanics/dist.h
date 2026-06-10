@@ -56,15 +56,18 @@ struct DistReport {
     int32_t damage_min = 0;
     int32_t damage_max = 0;
     double damage_mean = 0;
+    double damage_sd = 0;  // sample stddev over contact swings
     int32_t damage_p50 = 0;
     int32_t damage_p99 = 0;
     double damage_mean_per_swing = 0;  // over all N swings, misses as 0
 
     // Uncapped attacker rage gain per swing, deci-rage, over all N swings.
     double rage_att_mean_deci = 0;
+    double rage_att_sd_deci = 0;
     int32_t rage_att_min_deci = 0;
     int32_t rage_att_max_deci = 0;
     double rage_def_mean_deci = 0;
+    double rage_def_sd_deci = 0;
 };
 
 // Resolves N independent swings of the scenario's attacker against its

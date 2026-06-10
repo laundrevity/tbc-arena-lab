@@ -94,16 +94,18 @@ TEST_CASE("attack table: defense vs weapon skill delta shifts ranges") {
     CHECK(w(t, Outcome::Dodge) == 840);
     CHECK(w(t, Outcome::Parry) == 640);
     CHECK(w(t, Outcome::Block) == 540);
-    CHECK(w(t, Outcome::Crit) == 2460);
+    CHECK(w(t, Outcome::Crit) == 2460);  // crit uses level cap 350 vs defense 360
 
     sc.defender.defense_skill = 350;
-    sc.attacker.weapon_skill = 355;  // attacker ahead: avoidance down, crit up
+    sc.attacker.weapon_skill = 355;  // attacker ahead: avoidance down...
     t = build_attack_table(sc.attacker, sc.defender, FacingClass::Front, true);
     CHECK(w(t, Outcome::Miss) == 480);
     CHECK(w(t, Outcome::Dodge) == 780);
     CHECK(w(t, Outcome::Parry) == 580);
     CHECK(w(t, Outcome::Block) == 480);
-    CHECK(w(t, Outcome::Crit) == 2520);
+    // ...but crit does NOT rise: vs players the skill term is the level cap
+    // (5*70 = 350), not actual weapon skill (spec M-001, Unit.cpp:3957).
+    CHECK(w(t, Outcome::Crit) == 2500);
 }
 
 TEST_CASE("attack table: hit rating eats miss, floored at zero") {
@@ -168,14 +170,30 @@ TEST_CASE("frontal arc: cardinal and diagonal placements") {
     CHECK(in_frontal_arc(0, 0, 0, 0, -200));
 }
 
+// Spec M-008: the gate is MUTUAL (cmangos IsFacingTargetsFront) — the
+// attacker must also be facing the defender, or avoidance is disabled.
+TEST_CASE("frontal arc: mutual gate requires the attacker to face the defender") {
+    // Defender at origin facing +x; attacker dead ahead at (200, 0).
+    // Attacker facing -x (toward defender, pi): gate holds.
+    CHECK(mutual_frontal_arc(0, 0, 0, 200, 0, 3142));
+    // Attacker facing +x (away from defender): gate fails despite position.
+    CHECK(!mutual_frontal_arc(0, 0, 0, 200, 0, 0));
+    // Attacker behind: gate fails regardless of attacker facing.
+    CHECK(!mutual_frontal_arc(0, 0, 0, -200, 0, 0));
+    CHECK(!mutual_frontal_arc(0, 0, 0, -200, 0, 3142));
+    // Attacker on the shoulder line facing the defender: both dots are ties
+    // or positive, gate holds (ties count as front).
+    CHECK(mutual_frontal_arc(0, 0, 0, 0, 200, 4713));  // facing -y
+}
+
 // The scenario fixtures themselves resolve to the intended facing classes.
 TEST_CASE("frontal arc: scenario placements classify as pinned") {
     const Scenario front = load("m0_front_shield.yaml");
-    CHECK(in_frontal_arc(front.defender.pos_x_cm, front.defender.pos_y_cm,
-                         front.defender.facing_mrad, front.attacker.pos_x_cm,
-                         front.attacker.pos_y_cm));
+    CHECK(mutual_frontal_arc(front.defender.pos_x_cm, front.defender.pos_y_cm,
+                             front.defender.facing_mrad, front.attacker.pos_x_cm,
+                             front.attacker.pos_y_cm, front.attacker.facing_mrad));
     const Scenario behind = load("m0_behind.yaml");
-    CHECK(!in_frontal_arc(behind.defender.pos_x_cm, behind.defender.pos_y_cm,
-                          behind.defender.facing_mrad, behind.attacker.pos_x_cm,
-                          behind.attacker.pos_y_cm));
+    CHECK(!mutual_frontal_arc(behind.defender.pos_x_cm, behind.defender.pos_y_cm,
+                              behind.defender.facing_mrad, behind.attacker.pos_x_cm,
+                              behind.attacker.pos_y_cm, behind.attacker.facing_mrad));
 }

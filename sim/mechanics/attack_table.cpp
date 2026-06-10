@@ -62,16 +62,20 @@ AttackTable build_attack_table(const UnitSpec& attacker, const UnitSpec& defende
     AttackTable t;
     t.width[static_cast<int32_t>(Outcome::Miss)] =
         clamp0(BASE_MISS_PM + delta_pm - attacker.hit_pm);
-    // Dodge, parry and block are all gated on the attacker being in the
-    // defender's frontal arc (spec M-008); block additionally needs a shield.
+    // Dodge, parry and block are all gated on the mutual facing check
+    // (spec M-008); block additionally needs a shield.
     t.width[static_cast<int32_t>(Outcome::Dodge)] =
         front ? clamp0(defender.dodge_pm + delta_pm) : 0;
     t.width[static_cast<int32_t>(Outcome::Parry)] =
         front ? clamp0(defender.parry_pm + delta_pm) : 0;
-    t.width[static_cast<int32_t>(Outcome::Glance)] = 0;  // never vs players (D-001)
     t.width[static_cast<int32_t>(Outcome::Block)] =
         (front && defender.has_shield) ? clamp0(defender.block_pm + delta_pm) : 0;
-    t.width[static_cast<int32_t>(Outcome::Crit)] = clamp0(attacker.crit_pm - delta_pm);
+    t.width[static_cast<int32_t>(Outcome::Glance)] = 0;  // never vs players (D-001)
+    // Crit vs players uses the attacker's LEVEL-CAPPED skill (5*level), not
+    // actual weapon skill (cmangos-tbc Unit.cpp:3957, spec M-001).
+    t.width[static_cast<int32_t>(Outcome::Crit)] =
+        clamp0(attacker.crit_pm +
+               (5 * attacker.level - defender.defense_skill) * SKILL_DELTA_PM_PER_POINT);
     t.width[static_cast<int32_t>(Outcome::Crush)] = 0;  // never vs players (D-002)
 
     // Hit takes the remainder; if earlier rows overflow 10000 the table is

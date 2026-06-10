@@ -65,12 +65,14 @@ void write_json(FILE* f, const Scenario& sc, const std::string& scenario_path, u
     }
     fprintf(f,
             "],\"damage\":{\"contact_swings\":%" PRIu64 ",\"min\":%d,\"max\":%d,\"mean\":%.4f,"
-            "\"p50\":%d,\"p99\":%d,\"mean_per_swing\":%.4f},"
-            "\"rage_deci_uncapped\":{\"attacker_mean\":%.4f,\"attacker_min\":%d,"
-            "\"attacker_max\":%d,\"defender_mean\":%.4f},\"all_pass\":%s}\n",
-            r.contact_count, r.damage_min, r.damage_max, r.damage_mean, r.damage_p50, r.damage_p99,
-            r.damage_mean_per_swing, r.rage_att_mean_deci, r.rage_att_min_deci,
-            r.rage_att_max_deci, r.rage_def_mean_deci, r.all_pass ? "true" : "false");
+            "\"sd\":%.4f,\"p50\":%d,\"p99\":%d,\"mean_per_swing\":%.4f},"
+            "\"rage_deci_uncapped\":{\"attacker_mean\":%.4f,\"attacker_sd\":%.4f,"
+            "\"attacker_min\":%d,\"attacker_max\":%d,\"defender_mean\":%.4f,"
+            "\"defender_sd\":%.4f},\"all_pass\":%s}\n",
+            r.contact_count, r.damage_min, r.damage_max, r.damage_mean, r.damage_sd, r.damage_p50,
+            r.damage_p99, r.damage_mean_per_swing, r.rage_att_mean_deci, r.rage_att_sd_deci,
+            r.rage_att_min_deci, r.rage_att_max_deci, r.rage_def_mean_deci, r.rage_def_sd_deci,
+            r.all_pass ? "true" : "false");
 }
 
 } // namespace
@@ -114,12 +116,14 @@ int main(int argc, char** argv) {
                row.expected_rate, row.observed_rate, row.count, row.ci_half_width,
                row.pass ? "PASS" : "FAIL");
     }
-    printf("damage (contact swings: %" PRIu64 "): mean %.2f, min %d, max %d, p50 %d, p99 %d; "
-           "mean/swing %.2f\n",
-           r.contact_count, r.damage_mean, r.damage_min, r.damage_max, r.damage_p50, r.damage_p99,
-           r.damage_mean_per_swing);
-    printf("rage/swing (deci, uncapped): attacker mean %.2f min %d max %d; defender mean %.2f\n",
-           r.rage_att_mean_deci, r.rage_att_min_deci, r.rage_att_max_deci, r.rage_def_mean_deci);
+    printf("damage (contact swings: %" PRIu64 "): mean %.2f sd %.2f, min %d, max %d, p50 %d, "
+           "p99 %d; mean/swing %.2f\n",
+           r.contact_count, r.damage_mean, r.damage_sd, r.damage_min, r.damage_max, r.damage_p50,
+           r.damage_p99, r.damage_mean_per_swing);
+    printf("rage/swing (deci, uncapped): attacker mean %.2f sd %.2f min %d max %d; "
+           "defender mean %.2f sd %.2f\n",
+           r.rage_att_mean_deci, r.rage_att_sd_deci, r.rage_att_min_deci, r.rage_att_max_deci,
+           r.rage_def_mean_deci, r.rage_def_sd_deci);
     printf("overall: %s\n", r.all_pass ? "PASS" : "FAIL");
 
     if (json_path) {

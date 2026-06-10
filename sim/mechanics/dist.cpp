@@ -48,8 +48,8 @@ DistReport run_distribution(const Scenario& sc, uint64_t seed, uint64_t n) {
 
     DistReport rep;
     rep.n = n;
-    rep.facing = in_frontal_arc(def.pos_x_cm, def.pos_y_cm, def.facing_mrad, att.pos_x_cm,
-                                att.pos_y_cm)
+    rep.facing = mutual_frontal_arc(def.pos_x_cm, def.pos_y_cm, def.facing_mrad, att.pos_x_cm,
+                                    att.pos_y_cm, att.facing_mrad)
                      ? FacingClass::Front
                      : FacingClass::Behind;
     rep.table = build_attack_table(att, def, rep.facing, true);
@@ -60,10 +60,11 @@ DistReport run_distribution(const Scenario& sc, uint64_t seed, uint64_t n) {
     std::vector<uint64_t> damage_hist(static_cast<size_t>(max_damage) + 1, 0);
 
     uint64_t outcome_counts[OUTCOME_COUNT] = {};
-    uint64_t damage_sum = 0;
+    uint64_t damage_sum = 0, damage_sq_sum = 0;
     int32_t damage_min = 0, damage_max = 0;
     bool first_contact = true;
     uint64_t rage_att_sum = 0, rage_def_sum = 0;
+    uint64_t rage_att_sq_sum = 0, rage_def_sq_sum = 0;
     int32_t rage_att_min = 0, rage_att_max = 0;
 
     RngCursor cursor;
@@ -72,11 +73,17 @@ DistReport run_distribution(const Scenario& sc, uint64_t seed, uint64_t n) {
         ++outcome_counts[static_cast<int32_t>(sw.outcome)];
         rage_att_sum += static_cast<uint64_t>(sw.rage_attacker_deci);
         rage_def_sum += static_cast<uint64_t>(sw.rage_defender_deci);
+        rage_att_sq_sum += static_cast<uint64_t>(sw.rage_attacker_deci) *
+                           static_cast<uint64_t>(sw.rage_attacker_deci);
+        rage_def_sq_sum += static_cast<uint64_t>(sw.rage_defender_deci) *
+                           static_cast<uint64_t>(sw.rage_defender_deci);
         if (i == 0 || sw.rage_attacker_deci < rage_att_min) rage_att_min = sw.rage_attacker_deci;
         if (i == 0 || sw.rage_attacker_deci > rage_att_max) rage_att_max = sw.rage_attacker_deci;
         if (outcome_makes_contact(sw.outcome)) {
             ++rep.contact_count;
             damage_sum += static_cast<uint64_t>(sw.damage);
+            damage_sq_sum +=
+                static_cast<uint64_t>(sw.damage) * static_cast<uint64_t>(sw.damage);
             ++damage_hist[static_cast<size_t>(sw.damage)];
             if (first_contact || sw.damage < damage_min) damage_min = sw.damage;
             if (first_contact || sw.damage > damage_max) damage_max = sw.damage;
@@ -103,19 +110,31 @@ DistReport run_distribution(const Scenario& sc, uint64_t seed, uint64_t n) {
         rep.all_pass = rep.all_pass && row.pass;
     }
 
+    const auto sample_sd = [](uint64_t sum, uint64_t sq_sum, uint64_t count) {
+        if (count < 2) return 0.0;
+        const double mean = static_cast<double>(sum) / static_cast<double>(count);
+        const double var = (static_cast<double>(sq_sum) -
+                            mean * mean * static_cast<double>(count)) /
+                           static_cast<double>(count - 1);
+        return var > 0 ? std::sqrt(var) : 0.0;
+    };
+
     rep.damage_min = damage_min;
     rep.damage_max = damage_max;
     rep.damage_mean = rep.contact_count
                           ? static_cast<double>(damage_sum) / static_cast<double>(rep.contact_count)
                           : 0.0;
+    rep.damage_sd = sample_sd(damage_sum, damage_sq_sum, rep.contact_count);
     rep.damage_mean_per_swing = n ? static_cast<double>(damage_sum) / static_cast<double>(n) : 0.0;
     rep.damage_p50 = histogram_quantile(damage_hist, rep.contact_count, 0.50);
     rep.damage_p99 = histogram_quantile(damage_hist, rep.contact_count, 0.99);
 
     rep.rage_att_mean_deci = n ? static_cast<double>(rage_att_sum) / static_cast<double>(n) : 0.0;
+    rep.rage_att_sd_deci = sample_sd(rage_att_sum, rage_att_sq_sum, n);
     rep.rage_att_min_deci = rage_att_min;
     rep.rage_att_max_deci = rage_att_max;
     rep.rage_def_mean_deci = n ? static_cast<double>(rage_def_sum) / static_cast<double>(n) : 0.0;
+    rep.rage_def_sd_deci = sample_sd(rage_def_sum, rage_def_sq_sum, n);
     return rep;
 }
 

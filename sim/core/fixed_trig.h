@@ -61,4 +61,14 @@ constexpr bool in_frontal_arc(int64_t def_x, int64_t def_y, int32_t def_facing_m
     return fx * dx + fy * dy >= 0;
 }
 
+// Mutual facing gate for dodge/parry/block (spec M-008): the attacker must be
+// in the defender's frontal arc AND the defender in the attacker's (the
+// attacker is facing the defender). Mirrors cmangos-tbc
+// WorldObject::IsFacingTargetsFront (Object.cpp:1634-1648 @ 009455e).
+constexpr bool mutual_frontal_arc(int64_t def_x, int64_t def_y, int32_t def_facing_mrad,
+                                  int64_t att_x, int64_t att_y, int32_t att_facing_mrad) {
+    return in_frontal_arc(def_x, def_y, def_facing_mrad, att_x, att_y) &&
+           in_frontal_arc(att_x, att_y, att_facing_mrad, def_x, def_y);
+}
+
 } // namespace arena

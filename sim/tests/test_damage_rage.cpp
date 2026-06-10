@@ -60,6 +60,9 @@ TEST_CASE("damage: armor reduction at fixed inputs") {
     CHECK(apply_armor(1000, 0) == 1000);
     // DR cap: armor 60000 would keep ~14.96%; clamped to 25%.
     CHECK(apply_armor(1000, 60000) == 250);
+    // Post-armor damage floors at 1 (spec M-004, Unit.cpp:2470).
+    CHECK(apply_armor(2, 60000) == 1);
+    CHECK(apply_armor(0, 60000) == 0);
 }
 
 // Specs M-003/M-005: pipeline order armor -> crit x2 -> block value.
@@ -76,15 +79,23 @@ TEST_CASE("damage: full pipeline for hit, crit and block at fixed inputs") {
     CHECK(resolve_damage(Outcome::Block, 400, att, wall) == 0);
 }
 
-// Spec M-006: deci-rage at fixed inputs (c10 = 2747, f2 = 7/14).
-TEST_CASE("rage: dealt and taken at fixed inputs") {
-    // Hit for 705: floor(375*705/2747)=96 plus floor(7*3600/400)=63 -> 159.
-    CHECK(rage_dealt_deci(705, 3600, false) == 159);
-    // Crit for 1410: floor(375*1410/2747)=192 plus floor(14*3600/400)=126 -> 318.
-    CHECK(rage_dealt_deci(1410, 3600, true) == 318);
+// Spec M-006: deci-rage at fixed inputs (c10 = 2747; oracle arithmetic:
+// hf truncated before halving, single final truncation).
+TEST_CASE("rage: dealt and taken at fixed inputs (oracle arithmetic)") {
+    // Hit for 705 at 3.6s: hf = floor(3.5*3.6) = 12;
+    // floor((375*705 + 5*12*2747)/2747) = floor(429195/2747) = 156.
+    // Oracle float check: (705/274.7*7.5 + 12)/2 = 15.624 rage -> 156 deci.
+    CHECK(rage_dealt_deci(705, 3600, false) == 156);
+    // Crit for 1410: hf = floor(7*3.6) = 25;
+    // floor((528750 + 343375)/2747) = floor(872125/2747) = 317.
+    CHECK(rage_dealt_deci(1410, 3600, true) == 317);
+    // Blocked hit for 525 (post-block damage, hit factor 3.5):
+    // floor((196875 + 164820)/2747) = 131.
+    CHECK(rage_dealt_deci(525, 3600, false) == 131);
     // Taken 705: floor(250*705/2747) = 64.
     CHECK(rage_taken_deci(705) == 64);
-    // No damage, no rage (miss/dodge/parry/fully-blocked).
+    // No damage, no rage (miss/dodge/parry/fully-blocked) — deliberate
+    // divergence from the oracle (D-011/D-012).
     CHECK(rage_dealt_deci(0, 3600, false) == 0);
     CHECK(rage_taken_deci(0) == 0);
 }

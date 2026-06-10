@@ -142,9 +142,9 @@ MatchResult run_match(const Scenario& sc, uint64_t seed, Sink&& sink) {
                 const int src = index_of(ev.source_id);
                 const int tgt = index_of(ev.target_id);
                 const FacingClass facing =
-                    in_frontal_arc(states[tgt].pos_x_cm, states[tgt].pos_y_cm,
-                                   states[tgt].facing_mrad, states[src].pos_x_cm,
-                                   states[src].pos_y_cm)
+                    mutual_frontal_arc(states[tgt].pos_x_cm, states[tgt].pos_y_cm,
+                                       states[tgt].facing_mrad, states[src].pos_x_cm,
+                                       states[src].pos_y_cm, states[src].facing_mrad)
                         ? FacingClass::Front
                         : FacingClass::Behind;
                 const SwingResult sw = resolve_swing(*specs[src], *specs[tgt], facing, seed,

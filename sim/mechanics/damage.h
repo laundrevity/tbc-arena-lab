@@ -33,17 +33,21 @@ constexpr int32_t ap_bonus(int32_t attack_power, int32_t weapon_speed_ms) {
     return static_cast<int32_t>(static_cast<int64_t>(attack_power) * weapon_speed_ms / 14000);
 }
 
-// Level-70 armor reduction: DR = armor / (armor + 10557.5), capped at 75%
-// (spec M-004). Numerator/denominator doubled to clear the .5.
-constexpr int32_t ARMOR_K2_L70 = 21115;   // 2 * 10557.5, TODO(verify) spec M-004
+// Level-70 armor reduction: DR = armor / (armor + 10557.5), capped at 75%,
+// post-armor damage floored at 1 (spec M-004; cmangos-tbc
+// Unit::CalcArmorReducedDamage, Unit.cpp:2445-2471 @ 009455e).
+// Numerator/denominator doubled to clear the .5.
+constexpr int32_t ARMOR_K2_L70 = 21115;     // 2 * 10557.5
 constexpr int32_t ARMOR_KEPT_MIN_PCT = 25;  // 75% DR cap
 
 constexpr int32_t apply_armor(int32_t damage, int32_t armor) {
+    if (damage <= 0) return damage;
     if (armor <= 0) return damage;
     const int64_t kept = static_cast<int64_t>(damage) * ARMOR_K2_L70 /
                          (2 * static_cast<int64_t>(armor) + ARMOR_K2_L70);
     const int64_t floor_kept = static_cast<int64_t>(damage) * ARMOR_KEPT_MIN_PCT / 100;
-    return static_cast<int32_t>(kept > floor_kept ? kept : floor_kept);
+    const int64_t reduced = kept > floor_kept ? kept : floor_kept;
+    return static_cast<int32_t>(reduced > 1 ? reduced : 1);
 }
 
 constexpr int32_t MELEE_CRIT_MULT = 2;  // spec M-003

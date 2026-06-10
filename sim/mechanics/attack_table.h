@@ -27,12 +27,14 @@
 
 namespace arena {
 
+// Order matches the oracle die (cmangos-tbc Unit.h:628-640, ledger D-015):
+// block precedes glance.
 enum class Outcome : int32_t {
     Miss = 0,
     Dodge,
     Parry,
-    Glance,  // zero-width vs players, always (ledger D-001)
     Block,
+    Glance,  // zero-width vs players, always (ledger D-001)
     Crit,
     Crush,   // zero-width vs players, always (ledger D-002)
     Hit,
