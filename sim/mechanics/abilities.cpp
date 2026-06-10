@@ -16,26 +16,18 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#pragma once
-
-#include <cstdint>
-#include <string>
+#include "sim/mechanics/abilities.h"
 
 namespace arena {
 
-struct ReplayResult {
-    bool ok = false;
-    std::string error;            // first mismatch / failure, empty when ok
-    uint64_t checkpoints_checked = 0;
-    uint64_t swings_in_trace = 0;
-    uint64_t abilities_in_trace = 0;
-};
-
-// Re-runs the scenario named in the trace header from the header seed and
-// verifies: the trace ruleset_hash matches this build's constants, the init
-// hash, every checkpoint hash, the swing-line count, and the end line.
-// `base_dir` resolves the header's scenario path (it is stored relative to
-// the repo root); pass "" to use it as-is from the current directory.
-ReplayResult verify_trace_file(const std::string& trace_path, const std::string& base_dir);
+const char* yellow_outcome_name(YellowOutcome o) {
+    switch (o) {
+        case YellowOutcome::Miss: return "miss";
+        case YellowOutcome::Dodge: return "dodge";
+        case YellowOutcome::Parry: return "parry";
+        case YellowOutcome::Hit: return "hit";
+    }
+    return "?";
+}
 
 } // namespace arena

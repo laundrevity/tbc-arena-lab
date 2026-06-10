@@ -86,6 +86,7 @@ ReplayResult verify_trace_file(const std::string& trace_path, const std::string&
     // Walk the trace and compare against the re-simulation.
     size_t next_checkpoint = 0;
     size_t next_swing = 0;
+    size_t next_ability = 0;
     bool saw_end = false;
     while (std::getline(in, line)) {
         if (!trace_get_string(line, "type", type)) {
@@ -125,6 +126,8 @@ ReplayResult verify_trace_file(const std::string& trace_path, const std::string&
             ++res.checkpoints_checked;
         } else if (type == "swing") {
             ++next_swing;
+        } else if (type == "ability") {
+            ++next_ability;
         } else if (type == "end") {
             int64_t t = 0;
             std::string reason;
@@ -146,6 +149,7 @@ ReplayResult verify_trace_file(const std::string& trace_path, const std::string&
     }
 
     res.swings_in_trace = next_swing;
+    res.abilities_in_trace = next_ability;
     if (!saw_end) {
         res.error = "trace has no end line";
         return res;
@@ -160,6 +164,12 @@ ReplayResult verify_trace_file(const std::string& trace_path, const std::string&
         res.error = fmt("trace has %" PRId64 " swings, resim produced %" PRId64,
                         static_cast<int64_t>(next_swing),
                         static_cast<int64_t>(sink.swings.size()));
+        return res;
+    }
+    if (next_ability != sink.abilities.size()) {
+        res.error = fmt("trace has %" PRId64 " abilities, resim produced %" PRId64,
+                        static_cast<int64_t>(next_ability),
+                        static_cast<int64_t>(sink.abilities.size()));
         return res;
     }
     res.ok = true;

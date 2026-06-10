@@ -42,6 +42,7 @@ struct UnitSpec {
     int32_t weapon_min = 0;
     int32_t weapon_max = 0;
     int32_t weapon_speed_ms = 0;
+    int32_t weapon_norm_ms = 0;  // normalized speed for abilities (spec M-013)
     int32_t armor = 0;
     int32_t dodge_pm = 0;  // per-myriad
     int32_t parry_pm = 0;  // per-myriad
@@ -50,13 +51,21 @@ struct UnitSpec {
     bool has_shield = false;
     bool attacks = false;
     int32_t max_hp = 0;
+    int32_t initial_rage_deci = 0;
     int64_t pos_x_cm = 0;
     int64_t pos_y_cm = 0;
     int32_t facing_mrad = 0;
+    // Policy knobs (deterministic scripted decisions, see mechanics spec
+    // "Policy knobs" — not game formulas).
+    bool use_mortal_strike = false;
+    int32_t hs_min_rage_deci = 0;  // 0 = never queue Heroic Strike
 };
 
 // Dynamic authoritative state. next_swing_ms is the main-hand ready-at
-// timestamp; -1 for units that never attack (spec M-007).
+// timestamp; -1 for units that never attack (spec M-007). gcd_ready_ms /
+// ms_ready_ms gate abilities (specs M-011/M-014); hs_queued is the pending
+// on-next-swing flag (M-015); next_decide_ms is the lazy-invalidation marker
+// for scheduled policy wake-ups (-1 = none).
 struct UnitState {
     int64_t pos_x_cm = 0;
     int64_t pos_y_cm = 0;
@@ -64,6 +73,10 @@ struct UnitState {
     int32_t hp = 0;
     int32_t rage_deci = 0;
     int64_t next_swing_ms = -1;
+    int64_t gcd_ready_ms = 0;
+    int64_t ms_ready_ms = 0;
+    int32_t hs_queued = 0;
+    int64_t next_decide_ms = -1;
 };
 
 inline UnitState initial_state(const UnitSpec& spec) {
@@ -72,7 +85,7 @@ inline UnitState initial_state(const UnitSpec& spec) {
     s.pos_y_cm = spec.pos_y_cm;
     s.facing_mrad = spec.facing_mrad;
     s.hp = spec.max_hp;
-    s.rage_deci = 0;
+    s.rage_deci = spec.initial_rage_deci;
     s.next_swing_ms = spec.attacks ? 0 : -1;
     return s;
 }
@@ -102,6 +115,10 @@ inline void serialize_unit(std::vector<uint8_t>& buf, int32_t entity_id, const U
     put_i32(buf, s.hp);
     put_i32(buf, s.rage_deci);
     put_i64(buf, s.next_swing_ms);
+    put_i64(buf, s.gcd_ready_ms);
+    put_i64(buf, s.ms_ready_ms);
+    put_i32(buf, s.hs_queued);
+    put_i64(buf, s.next_decide_ms);
 }
 
 // State hash over all units in ascending entity_id order. `buf` is a caller

@@ -98,6 +98,7 @@ bool parse_unit(KV& kv, const std::string& section, UnitSpec& u, std::string& er
               kv.get_i32("weapon_min", u.weapon_min, err) &&
               kv.get_i32("weapon_max", u.weapon_max, err) &&
               kv.get_i32("weapon_speed_ms", u.weapon_speed_ms, err) &&
+              kv.get_i32("weapon_norm_ms", u.weapon_norm_ms, err) &&
               kv.get_i32("armor", u.armor, err) &&
               kv.get_i32("dodge_pm", u.dodge_pm, err) &&
               kv.get_i32("parry_pm", u.parry_pm, err) &&
@@ -106,9 +107,12 @@ bool parse_unit(KV& kv, const std::string& section, UnitSpec& u, std::string& er
               kv.get_bool("has_shield", u.has_shield, err) &&
               kv.get_bool("attacks", u.attacks, err) &&
               kv.get_i32("max_hp", u.max_hp, err) &&
+              kv.get_i32("initial_rage_deci", u.initial_rage_deci, err) &&
               kv.get_i64("pos_x_cm", u.pos_x_cm, err) &&
               kv.get_i64("pos_y_cm", u.pos_y_cm, err) &&
-              kv.get_i32("facing_mrad", u.facing_mrad, err);
+              kv.get_i32("facing_mrad", u.facing_mrad, err) &&
+              kv.get_bool("use_mortal_strike", u.use_mortal_strike, err) &&
+              kv.get_i32("heroic_strike_min_rage_deci", u.hs_min_rage_deci, err);
     if (!ok) {
         err = section + ": " + err;
         return false;
@@ -118,8 +122,19 @@ bool parse_unit(KV& kv, const std::string& section, UnitSpec& u, std::string& er
         return false;
     }
     if (u.weapon_min <= 0 || u.weapon_max < u.weapon_min || u.weapon_speed_ms <= 0 ||
-        u.max_hp <= 0) {
-        err = section + ": weapon_min/weapon_max/weapon_speed_ms/max_hp out of range";
+        u.weapon_norm_ms <= 0 || u.max_hp <= 0) {
+        err = section + ": weapon_min/weapon_max/weapon_speed_ms/weapon_norm_ms/max_hp out of "
+                        "range";
+        return false;
+    }
+    if (u.initial_rage_deci < 0 || u.initial_rage_deci > 1000) {
+        err = section + ": initial_rage_deci must be in [0, 1000]";
+        return false;
+    }
+    // 150 deci = Heroic Strike cost (spec M-015); keep in sync with
+    // HS_RAGE_COST_DECI in sim/mechanics/abilities.h.
+    if (u.hs_min_rage_deci != 0 && u.hs_min_rage_deci < 150) {
+        err = section + ": heroic_strike_min_rage_deci must be 0 or >= 150 (M-015 cost)";
         return false;
     }
     return true;

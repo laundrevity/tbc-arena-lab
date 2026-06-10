@@ -37,15 +37,6 @@ const char* outcome_name(Outcome o) {
     return "?";
 }
 
-namespace {
-
-constexpr int32_t BASE_MISS_PM = 500;          // TODO(verify) spec M-001
-constexpr int32_t SKILL_DELTA_PM_PER_POINT = 4; // 0.04%/point, TODO(verify) spec M-001
-
-constexpr int32_t clamp0(int32_t v) { return v < 0 ? 0 : v; }
-
-} // namespace
-
 AttackTable build_attack_table(const UnitSpec& attacker, const UnitSpec& defender,
                                FacingClass facing, bool is_player_target) {
     if (!is_player_target) {
@@ -55,27 +46,20 @@ AttackTable build_attack_table(const UnitSpec& attacker, const UnitSpec& defende
         abort();
     }
 
-    const int32_t delta_pm =
-        (defender.defense_skill - attacker.weapon_skill) * SKILL_DELTA_PM_PER_POINT;
     const bool front = facing == FacingClass::Front;
 
     AttackTable t;
-    t.width[static_cast<int32_t>(Outcome::Miss)] =
-        clamp0(BASE_MISS_PM + delta_pm - attacker.hit_pm);
+    t.width[static_cast<int32_t>(Outcome::Miss)] = chance_miss_pm(attacker, defender);
     // Dodge, parry and block are all gated on the mutual facing check
     // (spec M-008); block additionally needs a shield.
     t.width[static_cast<int32_t>(Outcome::Dodge)] =
-        front ? clamp0(defender.dodge_pm + delta_pm) : 0;
+        front ? chance_dodge_pm(attacker, defender) : 0;
     t.width[static_cast<int32_t>(Outcome::Parry)] =
-        front ? clamp0(defender.parry_pm + delta_pm) : 0;
+        front ? chance_parry_pm(attacker, defender) : 0;
     t.width[static_cast<int32_t>(Outcome::Block)] =
-        (front && defender.has_shield) ? clamp0(defender.block_pm + delta_pm) : 0;
+        (front && defender.has_shield) ? chance_block_pm(attacker, defender) : 0;
     t.width[static_cast<int32_t>(Outcome::Glance)] = 0;  // never vs players (D-001)
-    // Crit vs players uses the attacker's LEVEL-CAPPED skill (5*level), not
-    // actual weapon skill (cmangos-tbc Unit.cpp:3957, spec M-001).
-    t.width[static_cast<int32_t>(Outcome::Crit)] =
-        clamp0(attacker.crit_pm +
-               (5 * attacker.level - defender.defense_skill) * SKILL_DELTA_PM_PER_POINT);
+    t.width[static_cast<int32_t>(Outcome::Crit)] = chance_crit_pm(attacker, defender);
     t.width[static_cast<int32_t>(Outcome::Crush)] = 0;  // never vs players (D-002)
 
     // Hit takes the remainder; if earlier rows overflow 10000 the table is

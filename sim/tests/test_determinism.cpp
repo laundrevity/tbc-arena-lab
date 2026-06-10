@@ -38,6 +38,18 @@ Scenario load(const char* name) {
 bool identical(const CollectSink& a, const CollectSink& b) {
     if (a.checkpoints != b.checkpoints) return false;
     if (a.end_t != b.end_t || a.end_reason != b.end_reason) return false;
+    if (a.abilities.size() != b.abilities.size()) return false;
+    for (size_t i = 0; i < a.abilities.size(); ++i) {
+        const AbilityRecord& x = a.abilities[i];
+        const AbilityRecord& y = b.abilities[i];
+        if (x.t != y.t || x.src != y.src || std::string(x.ability) != y.ability ||
+            x.result.outcome != y.result.outcome || x.result.crit != y.result.crit ||
+            x.result.blocked != y.result.blocked || x.result.damage != y.result.damage ||
+            x.src_rage_deci_after != y.src_rage_deci_after ||
+            x.tgt_rage_deci_after != y.tgt_rage_deci_after || x.tgt_hp_after != y.tgt_hp_after) {
+            return false;
+        }
+    }
     if (a.swings.size() != b.swings.size()) return false;
     for (size_t i = 0; i < a.swings.size(); ++i) {
         const SwingRecord& x = a.swings[i];
@@ -56,7 +68,8 @@ bool identical(const CollectSink& a, const CollectSink& b) {
 } // namespace
 
 TEST_CASE("determinism: same scenario + seed twice produces identical traces") {
-    for (const char* name : {"m0_front_shield.yaml", "m0_behind.yaml", "m1_mutual.yaml"}) {
+    for (const char* name :
+         {"m0_front_shield.yaml", "m0_behind.yaml", "m1_mutual.yaml", "m2_duel.yaml"}) {
         CAPTURE(name);
         const Scenario sc = load(name);
         CollectSink a, b;

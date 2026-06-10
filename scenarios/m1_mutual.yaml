@@ -32,6 +32,7 @@ attacker:
   weapon_min: 320
   weapon_max: 480
   weapon_speed_ms: 3600
+  weapon_norm_ms: 3300
   armor: 6200
   dodge_pm: 800
   parry_pm: 600
@@ -40,9 +41,12 @@ attacker:
   has_shield: false
   attacks: true
   max_hp: 25000
+  initial_rage_deci: 0
   pos_x_cm: 200
   pos_y_cm: 0
   facing_mrad: 3142
+  use_mortal_strike: false
+  heroic_strike_min_rage_deci: 0
 
 defender:
   entity_id: 2
@@ -55,6 +59,7 @@ defender:
   weapon_min: 150
   weapon_max: 280
   weapon_speed_ms: 2600
+  weapon_norm_ms: 2400
   armor: 6200
   dodge_pm: 800
   parry_pm: 600
@@ -63,6 +68,9 @@ defender:
   has_shield: true
   attacks: true
   max_hp: 25000
+  initial_rage_deci: 0
   pos_x_cm: 0
   pos_y_cm: 0
   facing_mrad: 0
+  use_mortal_strike: false
+  heroic_strike_min_rage_deci: 0

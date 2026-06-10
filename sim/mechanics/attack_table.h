@@ -63,6 +63,37 @@ struct AttackTable {
     }
 };
 
+// Per-chance helpers (per-myriad, PvP path, spec M-001) shared by the white
+// table builder and the yellow avoidance die (spec M-012) so the two cannot
+// drift. `delta4` terms use defense_skill - weapon_skill.
+constexpr int32_t pm_clamp0(int32_t v) { return v < 0 ? 0 : v; }
+constexpr int32_t SKILL_DELTA_PM_PER_POINT = 4;  // 0.04%/point
+constexpr int32_t BASE_MISS_PM = 500;            // 5.00% base vs players
+
+constexpr int32_t chance_miss_pm(const UnitSpec& att, const UnitSpec& def) {
+    return pm_clamp0(BASE_MISS_PM +
+                     (def.defense_skill - att.weapon_skill) * SKILL_DELTA_PM_PER_POINT -
+                     att.hit_pm);
+}
+constexpr int32_t chance_dodge_pm(const UnitSpec& att, const UnitSpec& def) {
+    return pm_clamp0(def.dodge_pm +
+                     (def.defense_skill - att.weapon_skill) * SKILL_DELTA_PM_PER_POINT);
+}
+constexpr int32_t chance_parry_pm(const UnitSpec& att, const UnitSpec& def) {
+    return pm_clamp0(def.parry_pm +
+                     (def.defense_skill - att.weapon_skill) * SKILL_DELTA_PM_PER_POINT);
+}
+constexpr int32_t chance_block_pm(const UnitSpec& att, const UnitSpec& def) {
+    return pm_clamp0(def.block_pm +
+                     (def.defense_skill - att.weapon_skill) * SKILL_DELTA_PM_PER_POINT);
+}
+// Crit vs players uses the attacker's LEVEL-CAPPED skill (5*level), not
+// actual weapon skill (cmangos-tbc Unit.cpp:3957, spec M-001).
+constexpr int32_t chance_crit_pm(const UnitSpec& att, const UnitSpec& def) {
+    return pm_clamp0(att.crit_pm +
+                     (5 * att.level - def.defense_skill) * SKILL_DELTA_PM_PER_POINT);
+}
+
 // Pure function: stats + facing class -> ranges (spec M-001). Only the
 // player-vs-player path is implemented in M0; is_player_target=false aborts
 // loudly rather than returning silently-wrong mob math.

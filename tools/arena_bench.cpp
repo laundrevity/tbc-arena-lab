@@ -37,8 +37,10 @@ namespace {
 
 struct CountSink {
     uint64_t swings = 0;
+    uint64_t abilities = 0;
     uint64_t checkpoints = 0;
     void on_swing(const SwingRecord&) { ++swings; }
+    void on_ability(const AbilityRecord&) { ++abilities; }
     void on_checkpoint(int64_t, uint64_t) { ++checkpoints; }
     void on_end(int64_t, const char*, uint64_t, uint64_t) {}
 };
@@ -91,8 +93,9 @@ int main(int argc, char** argv) {
            simulated_ms, wall_s);
     printf("simulated-ms per wall-ms: %.1f (%.1fx realtime, single core)\n", sim_per_wall,
            sim_per_wall);
-    printf("swings/sec: %.3e   checkpoints/sec: %.3e\n",
+    printf("swings/sec: %.3e   abilities/sec: %.3e   checkpoints/sec: %.3e\n",
            static_cast<double>(sink.swings) / wall_s,
+           static_cast<double>(sink.abilities) / wall_s,
            static_cast<double>(sink.checkpoints) / wall_s);
     return 0;
 }

@@ -64,10 +64,20 @@ TEST_CASE("event queue: same source, target breaks the tie, then insertion seq")
     CHECK(c.target_id == 3);
 }
 
-TEST_CASE("event queue: priorities are pinned (checkpoint 0, end 1, swing 2)") {
+TEST_CASE("event queue: priorities are pinned (checkpoint 0, end 1, decide 2, swing 3)") {
     // These values are part of the documented order; changing them is a
-    // trace-format change and must fail here first.
+    // semantics change and must fail here first. (Decide added in M2: at an
+    // equal timestamp, instant abilities resolve before swings.)
     CHECK(static_cast<int32_t>(EventKind::Checkpoint) == 0);
     CHECK(static_cast<int32_t>(EventKind::MatchEnd) == 1);
-    CHECK(static_cast<int32_t>(EventKind::Swing) == 2);
+    CHECK(static_cast<int32_t>(EventKind::Decide) == 2);
+    CHECK(static_cast<int32_t>(EventKind::Swing) == 3);
+}
+
+TEST_CASE("event queue: Decide pops before Swing at the same timestamp") {
+    EventQueue q(8);
+    q.push(1000, EventKind::Swing, 1, 2);
+    q.push(1000, EventKind::Decide, 2, 0);
+    CHECK(q.pop().kind == EventKind::Decide);
+    CHECK(q.pop().kind == EventKind::Swing);
 }

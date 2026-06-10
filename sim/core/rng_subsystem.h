@@ -29,6 +29,10 @@ enum class RngSubsystem : uint32_t {
     weapon_damage = 1,  // weapon min..max damage roll (spec M-002)
     oracle_table  = 2,  // arena_diff oracle-model Monte Carlo, table roll
     oracle_damage = 3,  // arena_diff oracle-model Monte Carlo, damage roll
+    yellow_table  = 4,  // ability avoidance die (spec M-012)
+    yellow_crit   = 5,  // ability crit roll, consumed on hit only (M-012)
+    yellow_block  = 6,  // ability partial-block roll, consumed on hit only (M-012)
+    yellow_damage = 7,  // ability weapon damage roll, consumed on hit only (M-012)
 };
 
 } // namespace arena

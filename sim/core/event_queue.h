@@ -25,14 +25,16 @@
 namespace arena {
 
 // Event kinds double as same-timestamp priorities: at equal time_ms a
-// Checkpoint fires before MatchEnd fires before Swing. This is THE single
-// definition of the simultaneous-event total order
+// Checkpoint fires before MatchEnd fires before Decide (policy wake-up,
+// instant abilities) fires before Swing. This is THE single definition of
+// the simultaneous-event total order
 //   (time_ms, priority, source_id, target_id, seq)
 // required by CLAUDE.md rule 3; it is tested in test_event_order.cpp.
 enum class EventKind : int32_t {
     Checkpoint = 0,
     MatchEnd   = 1,
-    Swing      = 2,
+    Decide     = 2,
+    Swing      = 3,
 };
 
 // POD event. seq is assigned monotonically at push time and is the final

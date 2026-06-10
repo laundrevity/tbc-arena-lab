@@ -42,11 +42,27 @@ void trace_write_init(FILE* f, uint64_t state_hash, const int32_t* ids, const Un
         const UnitState& s = states[i];
         fprintf(f,
                 "%s{\"id\":%d,\"pos_x_cm\":%" PRId64 ",\"pos_y_cm\":%" PRId64
-                ",\"facing_mrad\":%d,\"hp\":%d,\"rage_deci\":%d,\"next_swing_ms\":%" PRId64 "}",
+                ",\"facing_mrad\":%d,\"hp\":%d,\"rage_deci\":%d,\"next_swing_ms\":%" PRId64
+                ",\"gcd_ready_ms\":%" PRId64 ",\"ms_ready_ms\":%" PRId64
+                ",\"hs_queued\":%d,\"next_decide_ms\":%" PRId64 "}",
                 i ? "," : "", ids[i], s.pos_x_cm, s.pos_y_cm, s.facing_mrad, s.hp, s.rage_deci,
-                s.next_swing_ms);
+                s.next_swing_ms, s.gcd_ready_ms, s.ms_ready_ms, s.hs_queued, s.next_decide_ms);
     }
     fprintf(f, "]}\n");
+}
+
+void trace_write_ability(FILE* f, int64_t t, uint64_t seq, int32_t src, int32_t tgt,
+                         const char* ability, int32_t roll_pm, const char* outcome, bool crit,
+                         bool blocked, int32_t damage, int32_t src_rage_deci_after,
+                         int32_t tgt_rage_deci_after, int32_t tgt_hp_after) {
+    fprintf(f,
+            "{\"type\":\"ability\",\"t\":%" PRId64 ",\"seq\":%" PRIu64
+            ",\"src\":%d,\"tgt\":%d,\"ability\":\"%s\",\"roll_pm\":%d,\"outcome\":\"%s\","
+            "\"crit\":%s,\"blocked\":%s,\"damage\":%d,\"src_rage_deci\":%d,"
+            "\"tgt_rage_deci\":%d,\"tgt_hp\":%d}\n",
+            t, seq, src, tgt, ability, roll_pm, outcome, crit ? "true" : "false",
+            blocked ? "true" : "false", damage, src_rage_deci_after, tgt_rage_deci_after,
+            tgt_hp_after);
 }
 
 void trace_write_swing(FILE* f, int64_t t, uint64_t seq, int32_t src, int32_t tgt,

@@ -47,6 +47,7 @@ target_include_directories(arena_core PUBLIC ${CMAKE_SOURCE_DIR})
 
 add_library(arena_mechanics STATIC
   sim/mechanics/attack_table.cpp
+  sim/mechanics/abilities.cpp
   sim/mechanics/ruleset.cpp
   sim/mechanics/dist.cpp
   sim/mechanics/replay.cpp)
@@ -79,7 +80,8 @@ add_executable(arena_tests
   sim/tests/test_replay_golden.cpp
   sim/tests/test_dist_self.cpp
   sim/tests/test_oracle_model.cpp
-  sim/tests/test_parry_haste.cpp)
+  sim/tests/test_parry_haste.cpp
+  sim/tests/test_abilities.cpp)
 target_link_libraries(arena_tests PRIVATE arena_oracle)
 target_include_directories(arena_tests PRIVATE ${CMAKE_SOURCE_DIR}/third_party)
 target_compile_definitions(arena_tests PRIVATE REPO_ROOT="${CMAKE_SOURCE_DIR}")

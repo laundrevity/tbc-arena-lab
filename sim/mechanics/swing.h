@@ -32,9 +32,15 @@ namespace arena {
 
 // Per-(entity, subsystem) use counters. The damage counter advances only on
 // contact outcomes, so table-only refactors cannot shift damage streams.
+// Yellow counters (spec M-012) advance per ability use; crit/block/damage
+// only on hit (block additionally only when blockable at all).
 struct RngCursor {
     uint64_t table_seq = 0;
     uint64_t damage_seq = 0;
+    uint64_t yellow_table_seq = 0;
+    uint64_t yellow_crit_seq = 0;
+    uint64_t yellow_block_seq = 0;
+    uint64_t yellow_damage_seq = 0;
 };
 
 struct SwingResult {

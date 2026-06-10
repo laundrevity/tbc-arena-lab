@@ -20,6 +20,7 @@
 
 #include "sim/core/fixed_trig.h"
 #include "sim/core/fnv1a.h"
+#include "sim/mechanics/abilities.h"
 #include "sim/mechanics/damage.h"
 #include "sim/mechanics/rage.h"
 
@@ -50,6 +51,15 @@ std::string ruleset_manifest() {
     m += ";rage_on_avoid=none";  // ledger D-011/D-012
     m += ";parry_haste=p20_floor_div5_windows_20_60";  // spec M-010
     m += ";frontal_arc=mutual_pi;pi_mrad=" + std::to_string(PI_MRAD);
+    m += ";gcd_ms=" + std::to_string(GCD_MS);
+    m += ";yellow=miss,dodge,parry,hit+crit_roll+partial_block";  // spec M-012
+    m += ";yellow_pipeline=crit_then_armor_then_block";           // ledger D-020
+    m += ";ability_rage=full_cost_on_avoid,no_attacker_gain,victim_gain";  // M-016/D-019
+    m += ";ms=cost" + std::to_string(MS_RAGE_COST_DECI) + ",cd" +
+         std::to_string(MS_COOLDOWN_MS) + ",bonus" + std::to_string(MS_FLAT_BONUS) +
+         ",normalized,gcd";
+    m += ";hs=cost" + std::to_string(HS_RAGE_COST_DECI) + ",bonus" +
+         std::to_string(HS_FLAT_BONUS) + ",on_next_swing,off_gcd";
     return m;
 }
 
