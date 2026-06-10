@@ -49,6 +49,9 @@ struct FileSink {
                             r.result.blocked, r.result.damage, r.src_rage_deci_after,
                             r.tgt_rage_deci_after, r.tgt_hp_after);
     }
+    void on_decision(const DecisionRecord& r) {
+        trace_write_decision(f, r.t, r.unit, action_name(r.action));
+    }
     void on_checkpoint(int64_t t, uint64_t h) { trace_write_checkpoint(f, t, h); }
     void on_end(int64_t t, const char* reason, uint64_t swings, uint64_t checkpoints) {
         trace_write_end(f, t, reason, swings, checkpoints);

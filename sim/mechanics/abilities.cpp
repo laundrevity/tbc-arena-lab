@@ -18,7 +18,19 @@
 
 #include "sim/mechanics/abilities.h"
 
+#include "sim/mechanics/observation.h"
+
 namespace arena {
+
+const char* action_name(Action a) {
+    switch (a) {
+        case Action::None: return "none";
+        case Action::CastMortalStrike: return "cast_mortal_strike";
+        case Action::QueueHeroicStrike: return "queue_heroic_strike";
+        case Action::UnqueueHeroicStrike: return "unqueue_heroic_strike";
+    }
+    return "?";
+}
 
 const char* yellow_outcome_name(YellowOutcome o) {
     switch (o) {

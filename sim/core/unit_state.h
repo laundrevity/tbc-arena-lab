@@ -29,6 +29,13 @@
 
 namespace arena {
 
+// Decision policy selector (docs/observation_action_spec.md); the policy
+// implementations live in sim/mechanics/policy.h.
+enum class PolicyKind : int32_t {
+    Idle = 0,
+    Scripted = 1,
+};
+
 // Static, scenario-pinned stats. Not part of the per-checkpoint state hash
 // (they cannot change in M0); the trace header's scenario reference pins them.
 struct UnitSpec {
@@ -55,17 +62,19 @@ struct UnitSpec {
     int64_t pos_x_cm = 0;
     int64_t pos_y_cm = 0;
     int32_t facing_mrad = 0;
-    // Policy knobs (deterministic scripted decisions, see mechanics spec
-    // "Policy knobs" — not game formulas).
-    bool use_mortal_strike = false;
-    int32_t hs_min_rage_deci = 0;  // 0 = never queue Heroic Strike
+    // Loadout (which abilities the unit knows) and decision policy
+    // (docs/observation_action_spec.md).
+    bool knows_mortal_strike = false;
+    bool knows_heroic_strike = false;
+    PolicyKind policy = PolicyKind::Idle;
+    int32_t scripted_hs_min_rage_deci = 0;  // ScriptedPolicy knob, 0 = never
 };
 
 // Dynamic authoritative state. next_swing_ms is the main-hand ready-at
 // timestamp; -1 for units that never attack (spec M-007). gcd_ready_ms /
 // ms_ready_ms gate abilities (specs M-011/M-014); hs_queued is the pending
-// on-next-swing flag (M-015); next_decide_ms is the lazy-invalidation marker
-// for scheduled policy wake-ups (-1 = none).
+// on-next-swing flag (M-015). Decision ticks are a global chain (M3), so no
+// per-unit wake-up bookkeeping exists.
 struct UnitState {
     int64_t pos_x_cm = 0;
     int64_t pos_y_cm = 0;
@@ -76,7 +85,6 @@ struct UnitState {
     int64_t gcd_ready_ms = 0;
     int64_t ms_ready_ms = 0;
     int32_t hs_queued = 0;
-    int64_t next_decide_ms = -1;
 };
 
 inline UnitState initial_state(const UnitSpec& spec) {
@@ -118,7 +126,6 @@ inline void serialize_unit(std::vector<uint8_t>& buf, int32_t entity_id, const U
     put_i64(buf, s.gcd_ready_ms);
     put_i64(buf, s.ms_ready_ms);
     put_i32(buf, s.hs_queued);
-    put_i64(buf, s.next_decide_ms);
 }
 
 // State hash over all units in ascending entity_id order. `buf` is a caller

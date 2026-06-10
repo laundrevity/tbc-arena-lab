@@ -34,6 +34,7 @@
 //   ability    {"type":"ability","t":..,"seq":..,"src":..,"tgt":..,
 //               "ability":..,"roll_pm":..,"outcome":..,"crit":..,"blocked":..,
 //               "damage":..,"src_rage_deci":..,"tgt_rage_deci":..,"tgt_hp":..}
+//   decision   {"type":"decision","t":..,"unit":..,"action":..}
 //   checkpoint {"type":"checkpoint","t":..,"hash":..}
 //   end        {"type":"end","t":..,"reason":..,"swings":..,"checkpoints":..}
 // Hashes are "0x%016x" strings. Strings we emit contain no JSON escapes;
@@ -57,6 +58,10 @@ void trace_write_ability(FILE* f, int64_t t, uint64_t seq, int32_t src, int32_t 
                          const char* ability, int32_t roll_pm, const char* outcome, bool crit,
                          bool blocked, int32_t damage, int32_t src_rage_deci_after,
                          int32_t tgt_rage_deci_after, int32_t tgt_hp_after);
+
+// Applied non-None agent actions; a tick without decision lines means None
+// (docs/observation_action_spec.md).
+void trace_write_decision(FILE* f, int64_t t, int32_t unit, const char* action);
 
 void trace_write_checkpoint(FILE* f, int64_t t, uint64_t state_hash);
 

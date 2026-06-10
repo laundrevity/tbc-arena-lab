@@ -44,9 +44,9 @@ void trace_write_init(FILE* f, uint64_t state_hash, const int32_t* ids, const Un
                 "%s{\"id\":%d,\"pos_x_cm\":%" PRId64 ",\"pos_y_cm\":%" PRId64
                 ",\"facing_mrad\":%d,\"hp\":%d,\"rage_deci\":%d,\"next_swing_ms\":%" PRId64
                 ",\"gcd_ready_ms\":%" PRId64 ",\"ms_ready_ms\":%" PRId64
-                ",\"hs_queued\":%d,\"next_decide_ms\":%" PRId64 "}",
+                ",\"hs_queued\":%d}",
                 i ? "," : "", ids[i], s.pos_x_cm, s.pos_y_cm, s.facing_mrad, s.hp, s.rage_deci,
-                s.next_swing_ms, s.gcd_ready_ms, s.ms_ready_ms, s.hs_queued, s.next_decide_ms);
+                s.next_swing_ms, s.gcd_ready_ms, s.ms_ready_ms, s.hs_queued);
     }
     fprintf(f, "]}\n");
 }
@@ -75,6 +75,11 @@ void trace_write_swing(FILE* f, int64_t t, uint64_t seq, int32_t src, int32_t tg
             "\"src_rage_deci\":%d,\"tgt_rage_deci\":%d,\"tgt_hp\":%d}\n",
             t, seq, src, tgt, roll_pm, outcome, damage, src_rage_deci_after, tgt_rage_deci_after,
             tgt_hp_after);
+}
+
+void trace_write_decision(FILE* f, int64_t t, int32_t unit, const char* action) {
+    fprintf(f, "{\"type\":\"decision\",\"t\":%" PRId64 ",\"unit\":%d,\"action\":\"%s\"}\n", t,
+            unit, action);
 }
 
 void trace_write_checkpoint(FILE* f, int64_t t, uint64_t state_hash) {

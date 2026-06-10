@@ -38,6 +38,13 @@ Scenario load(const char* name) {
 bool identical(const CollectSink& a, const CollectSink& b) {
     if (a.checkpoints != b.checkpoints) return false;
     if (a.end_t != b.end_t || a.end_reason != b.end_reason) return false;
+    if (a.decisions.size() != b.decisions.size()) return false;
+    for (size_t i = 0; i < a.decisions.size(); ++i) {
+        if (a.decisions[i].t != b.decisions[i].t || a.decisions[i].unit != b.decisions[i].unit ||
+            a.decisions[i].action != b.decisions[i].action) {
+            return false;
+        }
+    }
     if (a.abilities.size() != b.abilities.size()) return false;
     for (size_t i = 0; i < a.abilities.size(); ++i) {
         const AbilityRecord& x = a.abilities[i];

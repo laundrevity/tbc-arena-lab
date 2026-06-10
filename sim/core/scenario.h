@@ -28,6 +28,7 @@ struct Scenario {
     std::string name;
     std::string ruleset;
     int64_t duration_ms = 0;
+    int64_t decision_tick_ms = 100;  // agent decision cadence (M3 spec)
     UnitSpec attacker;
     UnitSpec defender;
     std::string source_path;  // as loaded; recorded in trace headers

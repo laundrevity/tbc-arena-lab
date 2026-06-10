@@ -29,6 +29,7 @@ struct ReplayResult {
     uint64_t checkpoints_checked = 0;
     uint64_t swings_in_trace = 0;
     uint64_t abilities_in_trace = 0;
+    uint64_t decisions_in_trace = 0;
 };
 
 // Re-runs the scenario named in the trace header from the header seed and

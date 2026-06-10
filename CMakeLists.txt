@@ -81,7 +81,8 @@ add_executable(arena_tests
   sim/tests/test_dist_self.cpp
   sim/tests/test_oracle_model.cpp
   sim/tests/test_parry_haste.cpp
-  sim/tests/test_abilities.cpp)
+  sim/tests/test_abilities.cpp
+  sim/tests/test_observation.cpp)
 target_link_libraries(arena_tests PRIVATE arena_oracle)
 target_include_directories(arena_tests PRIVATE ${CMAKE_SOURCE_DIR}/third_party)
 target_compile_definitions(arena_tests PRIVATE REPO_ROOT="${CMAKE_SOURCE_DIR}")

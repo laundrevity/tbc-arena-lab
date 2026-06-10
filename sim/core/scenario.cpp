@@ -111,10 +111,24 @@ bool parse_unit(KV& kv, const std::string& section, UnitSpec& u, std::string& er
               kv.get_i64("pos_x_cm", u.pos_x_cm, err) &&
               kv.get_i64("pos_y_cm", u.pos_y_cm, err) &&
               kv.get_i32("facing_mrad", u.facing_mrad, err) &&
-              kv.get_bool("use_mortal_strike", u.use_mortal_strike, err) &&
-              kv.get_i32("heroic_strike_min_rage_deci", u.hs_min_rage_deci, err);
+              kv.get_bool("knows_mortal_strike", u.knows_mortal_strike, err) &&
+              kv.get_bool("knows_heroic_strike", u.knows_heroic_strike, err) &&
+              kv.get_i32("scripted_hs_min_rage_deci", u.scripted_hs_min_rage_deci, err);
     if (!ok) {
         err = section + ": " + err;
+        return false;
+    }
+    std::string policy;
+    if (!kv.get_str("policy", policy, err)) {
+        err = section + ": " + err;
+        return false;
+    }
+    if (policy == "idle") {
+        u.policy = PolicyKind::Idle;
+    } else if (policy == "scripted") {
+        u.policy = PolicyKind::Scripted;
+    } else {
+        err = section + ": policy must be 'idle' or 'scripted', got '" + policy + "'";
         return false;
     }
     if (u.level != 70) {
@@ -133,8 +147,12 @@ bool parse_unit(KV& kv, const std::string& section, UnitSpec& u, std::string& er
     }
     // 150 deci = Heroic Strike cost (spec M-015); keep in sync with
     // HS_RAGE_COST_DECI in sim/mechanics/abilities.h.
-    if (u.hs_min_rage_deci != 0 && u.hs_min_rage_deci < 150) {
-        err = section + ": heroic_strike_min_rage_deci must be 0 or >= 150 (M-015 cost)";
+    if (u.scripted_hs_min_rage_deci != 0 && u.scripted_hs_min_rage_deci < 150) {
+        err = section + ": scripted_hs_min_rage_deci must be 0 or >= 150 (M-015 cost)";
+        return false;
+    }
+    if (u.scripted_hs_min_rage_deci != 0 && !u.knows_heroic_strike) {
+        err = section + ": scripted_hs_min_rage_deci pinned but knows_heroic_strike is false";
         return false;
     }
     return true;
@@ -194,12 +212,17 @@ bool load_scenario(const std::string& path, Scenario& out, std::string& err) {
 
     if (!top.get_str("name", out.name, err) ||
         !top.get_str("ruleset", out.ruleset, err) ||
-        !top.get_i64("duration_ms", out.duration_ms, err)) {
+        !top.get_i64("duration_ms", out.duration_ms, err) ||
+        !top.get_i64("decision_tick_ms", out.decision_tick_ms, err)) {
         err = path + ": " + err;
         return false;
     }
     if (out.duration_ms <= 0) {
         err = path + ": duration_ms must be positive";
+        return false;
+    }
+    if (out.decision_tick_ms <= 0) {
+        err = path + ": decision_tick_ms must be positive";
         return false;
     }
     if (sections.find("attacker") == sections.end() || sections.find("defender") == sections.end()) {

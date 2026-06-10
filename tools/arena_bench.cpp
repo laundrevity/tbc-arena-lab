@@ -41,6 +41,7 @@ struct CountSink {
     uint64_t checkpoints = 0;
     void on_swing(const SwingRecord&) { ++swings; }
     void on_ability(const AbilityRecord&) { ++abilities; }
+    void on_decision(const DecisionRecord&) {}
     void on_checkpoint(int64_t, uint64_t) { ++checkpoints; }
     void on_end(int64_t, const char*, uint64_t, uint64_t) {}
 };

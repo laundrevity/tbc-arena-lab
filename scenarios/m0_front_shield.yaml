@@ -21,6 +21,7 @@
 name: m0_front_shield
 ruleset: anniversary-tbc-2.5.x
 duration_ms: 60000
+decision_tick_ms: 100
 
 attacker:
   entity_id: 1
@@ -46,8 +47,10 @@ attacker:
   pos_x_cm: 200
   pos_y_cm: 0
   facing_mrad: 3142
-  use_mortal_strike: false
-  heroic_strike_min_rage_deci: 0
+  knows_mortal_strike: false
+  knows_heroic_strike: false
+  policy: idle
+  scripted_hs_min_rage_deci: 0
 
 defender:
   entity_id: 2
@@ -73,5 +76,7 @@ defender:
   pos_x_cm: 0
   pos_y_cm: 0
   facing_mrad: 0
-  use_mortal_strike: false
-  heroic_strike_min_rage_deci: 0
+  knows_mortal_strike: false
+  knows_heroic_strike: false
+  policy: idle
+  scripted_hs_min_rage_deci: 0

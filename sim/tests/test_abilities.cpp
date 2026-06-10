@@ -68,6 +68,7 @@ Scenario make_scenario(const UnitSpec& a, const UnitSpec& d, int64_t duration_ms
     sc.name = "abilities_test";
     sc.ruleset = "anniversary-tbc-2.5.x";
     sc.duration_ms = duration_ms;
+    sc.decision_tick_ms = 100;
     sc.attacker = a;
     sc.defender = d;
     return sc;
@@ -124,16 +125,18 @@ TEST_CASE("abilities: yellow damage pipeline at fixed inputs") {
 }
 
 // Specs M-011/M-014/M-016: full cost on avoided casts, 6 s cooldown spacing
-// via Decide wake-ups. Defender dodges everything, so rage only ever drops.
+// at tick granularity. Defender dodges everything, so rage only ever drops.
 TEST_CASE("abilities: Mortal Strike costs full rage on dodge and respects cooldown") {
     UnitSpec a = det_attacker();
-    a.use_mortal_strike = true;
+    a.knows_mortal_strike = true;
+    a.policy = PolicyKind::Scripted;
     a.initial_rage_deci = 1000;
     UnitSpec d = det_defender();
     d.dodge_pm = 10000;  // dodges whites and yellows alike
 
     CollectSink s;
-    run_match(make_scenario(a, d, 15000), 11, s);
+    const MatchResult r = run_match(make_scenario(a, d, 15000), 11, s);
+    CHECK(r.illegal_actions == 0);
 
     REQUIRE(s.abilities.size() == 3);
     const std::vector<int64_t> expect_t = {0, 6000, 12000};
@@ -146,27 +149,26 @@ TEST_CASE("abilities: Mortal Strike costs full rage on dodge and respects cooldo
         CHECK(s.abilities[i].tgt_rage_deci_after == 0);  // no damage, no rage
     }
     // Dodged white swings grant no rage either, so no fourth cast at rage 100.
-    for (const SwingRecord& r : s.swings) CHECK(r.result.outcome == Outcome::Dodge);
+    for (const SwingRecord& rec : s.swings) CHECK(rec.result.outcome == Outcome::Dodge);
+    // Every cast was an applied decision.
+    CHECK(s.decisions.size() == 3);
+    for (const DecisionRecord& rec : s.decisions) {
+        CHECK(rec.action == Action::CastMortalStrike);
+    }
 }
 
 // Specs M-014/M-016/D-019: deterministic MS hit; victim gains rage from
-// ability damage, attacker gains none beyond paying the cost.
+// ability damage, attacker gains none beyond paying the cost. The decision
+// tick precedes the swing at t=0 (event order), so MS lands first.
 TEST_CASE("abilities: Mortal Strike hit damage and victim rage at fixed inputs") {
     UnitSpec a = det_attacker();
-    a.use_mortal_strike = true;
+    a.knows_mortal_strike = true;
+    a.policy = PolicyKind::Scripted;
     a.initial_rage_deci = 1000;
     const UnitSpec d = det_defender();
 
     CollectSink s;
     run_match(make_scenario(a, d, 1000), 5, s);
-
-    // t=0: white swing first (event order), then the MS cast.
-    REQUIRE(!s.swings.empty());
-    const SwingRecord& w = s.swings[0];
-    CHECK(w.t == 0);
-    CHECK(w.result.damage == 705);          // 400+720 -> armor
-    CHECK(w.src_rage_deci_after == 1000);   // capped
-    CHECK(w.tgt_rage_deci_after == 64);
 
     REQUIRE(!s.abilities.empty());
     const AbilityRecord& ms = s.abilities[0];
@@ -175,63 +177,86 @@ TEST_CASE("abilities: Mortal Strike hit damage and victim rage at fixed inputs")
     CHECK(ms.result.outcome == YellowOutcome::Hit);
     CHECK(!ms.result.crit);
     CHECK(!ms.result.blocked);
-    CHECK(ms.result.damage == 800);          // 210+400+660 -> armor
-    CHECK(ms.src_rage_deci_after == 700);    // 1000 - 300, no gain from spells
-    CHECK(ms.tgt_rage_deci_after == 64 + 72);  // victim rage from ability (D-019)
-    CHECK(ms.tgt_hp_after == 25000 - 705 - 800);
+    CHECK(ms.result.damage == 800);            // 210+400+660 -> armor
+    CHECK(ms.src_rage_deci_after == 700);      // 1000 - 300, no gain from spells
+    CHECK(ms.tgt_rage_deci_after == 72);       // victim rage from ability (D-019)
+    CHECK(ms.tgt_hp_after == 25000 - 800);
+
+    REQUIRE(!s.swings.empty());
+    const SwingRecord& w = s.swings[0];
+    CHECK(w.t == 0);
+    CHECK(w.result.damage == 705);             // 400+720 -> armor
+    CHECK(w.src_rage_deci_after == 700 + 156); // white swing rage after the MS cost
+    CHECK(w.tgt_rage_deci_after == 72 + 64);
+    CHECK(w.tgt_hp_after == 25000 - 800 - 705);
 }
 
-// Spec M-015: queue, replace-the-swing, and re-queue.
+// Spec M-015 + tick model: queue at threshold, swing fires HS, re-queue on
+// later ticks as rage recovers.
 TEST_CASE("abilities: Heroic Strike replaces the next swing when payable") {
     UnitSpec a = det_attacker();
-    a.hs_min_rage_deci = 200;
+    a.knows_heroic_strike = true;
+    a.policy = PolicyKind::Scripted;
+    a.scripted_hs_min_rage_deci = 200;
     a.initial_rage_deci = 300;
     const UnitSpec d = det_defender();
 
     CollectSink s;
     run_match(make_scenario(a, d, 15000), 3, s);
 
-    // t=0 white (rage 300+156=456, HS queues after), t=3600 HS (456-150=306,
-    // re-queues), t=7200 HS (306-150=156 < 200, no re-queue), t=10800 white
-    // (156+156=312, re-queues), t=14400 HS (312-150=162).
+    // tick 0 queues (300 >= 200); swing 0 fires HS (300-150=150).
+    // White 3600 (150+156=306); tick 3700 queues; swing 7200 HS (156).
+    // White 10800 (312); tick 10900 queues; swing 14400 HS (162).
     std::vector<int64_t> swing_t, ability_t;
     for (const SwingRecord& r : s.swings) swing_t.push_back(r.t);
     for (const AbilityRecord& r : s.abilities) ability_t.push_back(r.t);
-    CHECK(swing_t == std::vector<int64_t>{0, 10800});
-    CHECK(ability_t == std::vector<int64_t>{3600, 7200, 14400});
+    CHECK(swing_t == std::vector<int64_t>{3600, 10800});
+    CHECK(ability_t == std::vector<int64_t>{0, 7200, 14400});
     for (const AbilityRecord& r : s.abilities) {
         CHECK(std::string(r.ability) == "heroic_strike");
         CHECK(r.result.outcome == YellowOutcome::Hit);
         CHECK(r.result.damage == 816);  // 176+400+720 -> armor (real speed)
     }
-    CHECK(s.abilities[0].src_rage_deci_after == 306);
+    CHECK(s.abilities[0].src_rage_deci_after == 150);
     CHECK(s.abilities[1].src_rage_deci_after == 156);
     CHECK(s.abilities[2].src_rage_deci_after == 162);
+    // Queue decisions at ticks 0, 3700, 10900.
+    std::vector<int64_t> decision_t;
+    for (const DecisionRecord& r : s.decisions) decision_t.push_back(r.t);
+    CHECK(decision_t == std::vector<int64_t>{0, 3700, 10900});
 }
 
 // Spec M-015: insufficient rage at swing time clears the queue and falls
-// back to a white swing.
+// back to a white swing. Driven by an injected PlaybackPolicy that queues
+// HS and then drains rage below the cost with Mortal Strike — also
+// exercises the caller-supplied Policy path.
 TEST_CASE("abilities: Heroic Strike falls back to white when rage is short") {
     UnitSpec a = det_attacker();
-    a.use_mortal_strike = true;
-    a.hs_min_rage_deci = 200;
-    a.initial_rage_deci = 200;
+    a.knows_mortal_strike = true;
+    a.knows_heroic_strike = true;
+    a.policy = PolicyKind::Idle;  // overridden below
     const UnitSpec d = det_defender();
 
-    CollectSink s;
-    run_match(make_scenario(a, d, 8000), 9, s);
+    PlaybackPolicy attacker_policy;
+    attacker_policy.script[3700] = Action::QueueHeroicStrike;
+    attacker_policy.script[3800] = Action::CastMortalStrike;
+    IdlePolicy defender_policy;
 
-    // t=0 white (rage 356), HS queues, MS casts (rage 56).
-    // t=3600: HS queued but 56 < 150 -> fallback WHITE swing (rage 212).
-    // t=7200: HS fires (212-150=62).
-    std::vector<int64_t> swing_t, ability_t;
-    for (const SwingRecord& r : s.swings) swing_t.push_back(r.t);
-    for (const AbilityRecord& r : s.abilities) ability_t.push_back(r.t);
-    CHECK(swing_t == std::vector<int64_t>{0, 3600});
-    REQUIRE(ability_t.size() == 2);
-    CHECK(ability_t[0] == 0);     // mortal strike
-    CHECK(ability_t[1] == 7200);  // heroic strike after rage recovers
+    CollectSink s;
+    const MatchResult r =
+        run_match(make_scenario(a, d, 8000), 9, s, &attacker_policy, &defender_policy);
+    CHECK(r.illegal_actions == 0);
+    CHECK(r.decisions == 2);
+
+    // Whites at 0 (rage 156) and 3600 (312). Queue at 3700; MS at 3800
+    // (312-300=12). Swing 7200: queued but 12 < 150 -> fallback WHITE.
+    std::vector<int64_t> swing_t;
+    for (const SwingRecord& rec : s.swings) swing_t.push_back(rec.t);
+    CHECK(swing_t == std::vector<int64_t>{0, 3600, 7200});
+    REQUIRE(s.abilities.size() == 1);
+    CHECK(s.abilities[0].t == 3800);
     CHECK(std::string(s.abilities[0].ability) == "mortal_strike");
-    CHECK(std::string(s.abilities[1].ability) == "heroic_strike");
-    CHECK(s.abilities[1].src_rage_deci_after == 62);
+    CHECK(s.abilities[0].result.damage == 800);
+    CHECK(s.abilities[0].src_rage_deci_after == 12);
+    CHECK(s.swings[2].src_rage_deci_after == 12 + 156);  // fallback white landed
 }

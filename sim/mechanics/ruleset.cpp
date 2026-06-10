@@ -60,6 +60,7 @@ std::string ruleset_manifest() {
          ",normalized,gcd";
     m += ";hs=cost" + std::to_string(HS_RAGE_COST_DECI) + ",bonus" +
          std::to_string(HS_FLAT_BONUS) + ",on_next_swing,off_gcd";
+    m += ";obs_act_v=1;state_v=2";  // M3: decision ticks; next_decide_ms removed
     return m;
 }
 
