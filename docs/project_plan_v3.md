@@ -47,9 +47,13 @@ Implications kept in view (but not built early):
   action masks from observations alone, fixed decision ticks with
   simultaneous-move snapshots, Policy interface (idle/scripted/playback),
   decision tracing + bit-exact action playback (imitation substrate).
-- **M4+ — TBD with the owner.** Candidates, unordered: Python bindings over
-  the M3 interface (the natural next step toward self-play); dual-wield;
-  stances + more abilities (richer decision space); movement/chase/leeway;
-  self-play harness; live-oracle capture (instrumented cmangos server);
-  Anniversary 2.5.x evidence pass (D-003); yellow-attack differential
-  coverage in arena_diff; combat-log observation windows.
+- **M4 — DONE (2026-06-10).** Python bindings (`docs/python_bindings.md`):
+  resumable MatchEngine (run_match is a wrapper over it — one
+  implementation), C ABI shared library, pure-ctypes Python package, parity
+  + determinism + trace-round-trip tests, throughput recorded.
+- **M5+ — TBD with the owner.** Candidates, unordered: self-play harness +
+  batched env stepping (numpy buffers); dual-wield; stances + more abilities
+  (richer decision space); movement/chase/leeway; live-oracle capture
+  (instrumented cmangos server); Anniversary 2.5.x evidence pass (D-003);
+  yellow-attack differential coverage in arena_diff; combat-log observation
+  windows.

@@ -5,6 +5,18 @@ replay-verified, `arena_dist` self-test PASSes at N=10^6 for both scenarios,
 throughput recorded in `docs/benchmarks.md` (~1.5e6 swings/sec, ~5.4e6×
 realtime, single core).
 
+**Session 6 complete (same date): M4 — Python bindings.** `run_match`'s
+loop became the resumable `MatchEngine` (construct -> observe -> step), with
+run_match now a thin Policy-driving wrapper — one implementation, parity
+proven bit-exactly in `test_engine.cpp` and by the unchanged goldens. A C
+ABI shared library (`libarena_env`, `sim/env/arena_c_api.h`) fronts the
+engine; `python/tbc_arena` is a pure-ctypes wrapper (no pybind11/python-dev
+/pip deps). Python-driven matches reproduce native scripted runs exactly,
+write replay-verified traces, and run at ~1.4e4 simulated-sec/sec with full
+observation processing (~9.9e4 step-only); batched stepping is the listed
+scaling path. ctest now includes the `python_env` suite. See
+`docs/python_bindings.md`.
+
 **Session 5 complete (same date): M3 — observation/action interface.** The
 RL-facing decision substrate per `docs/observation_action_spec.md`
 (normative): client-parity observations (integer-only, canonical

@@ -81,3 +81,17 @@ building two observations and running two policies (virtual dispatch).
 duel costs ~0.1 ms of wall time. Pure auto-attack scenarios skip the tick
 chain entirely and keep their M1-era throughput. No optimization
 warranted (CLAUDE.md workflow).
+
+### 2026-06-10 — M4 Python bindings (commit a039067+)
+
+- Same hardware; Python 3.13, ctypes, single core, m2_duel, 100 ms ticks.
+
+| driver | steps/s | simulated-sec per wall-sec |
+|---|---|---|
+| Python step() only | 9.9e5 | 9.9e4 |
+| Python full loop (observe+masks) | 1.4e5 | 1.4e4 |
+
+ctypes call overhead dominates the full loop (5 calls + dict per tick per
+unit). Acceptable for early experiments; the scaling path is a batched
+multi-env step call with preallocated buffers (future milestone). Native
+C++ throughput is unchanged by the engine refactor (goldens byte-identical).
