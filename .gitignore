@@ -3,3 +3,4 @@ build-*/
 *.o
 *.a
 compile_commands.json
+__pycache__/

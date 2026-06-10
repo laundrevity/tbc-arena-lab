@@ -2,15 +2,17 @@
 
 ## What this project is
 
-A scratch-built, deterministic, high-throughput simulator for WoW: The Burning Crusade arena combat, intended as an RL research environment. We are at **Milestone 0**: a minimal kernel that simulates one warrior auto-attacking another stationary warrior on a featureless plane, with statistical fidelity against a reference emulator (cmangos-tbc) to be verified later by a differential harness.
+A scratch-built, deterministic, high-throughput simulator for WoW: The Burning Crusade arena combat, intended as an RL research environment. Fidelity is checked against a reference emulator (cmangos-tbc, bootstrap oracle) via a differential harness; the pinned ruleset is Anniversary TBC 2.5.x (ledger D-003).
 
-The long-term plan lives in `docs/project_plan_v3.md` (if absent, ask before inventing scope). Nothing beyond the current milestone should be built speculatively.
+**Milestones M0–M4 are complete** (each dated 2026-06-10): deterministic kernel, source-level oracle audit + `arena_diff` harness, mutual auto-attack with parry-haste, first abilities + GCD (Mortal Strike, Heroic Strike, yellow-hit pipeline), observation/action interface with decision ticks and playback, and pure-ctypes Python bindings over a C ABI. **The current milestone is M5, scope TBD with the owner.**
 
-## Current milestone (M0) scope
+The long-term plan lives in `docs/project_plan_v3.md` (if absent, ask before inventing scope); per-session status in `docs/m0_status.md`. Nothing beyond the current milestone should be built speculatively.
 
-IN: integer-time event queue; counter-based RNG; fixed-point authoritative state; canonical serialization + state hashing; warrior auto-attack (attack table, weapon damage, swing timers, rage generation); deterministic replay; JSONL trace output; distribution-report harness; throughput benchmark; unit tests; golden traces.
+## Current scope (post-M4)
 
-OUT (do not build, even as stubs beyond a header comment): spells, auras, GCD, movement, stealth, pets, observation models, action masks, Python bindings, networking, any RL code, any map geometry beyond a flat plane.
+IN (built; preserve behavior — M0–M2 golden event streams are byte-identical across later milestones and must stay so absent an explained formula change): integer-time event queue with documented total order; counter-based RNG; fixed-point authoritative state; canonical serialization + state hashing; single-roll PvP attack table; weapon damage/armor/crit/block pipeline; swing timers; deci-rage; parry-haste; GCD; Mortal Strike; Heroic Strike; yellow hit resolution; client-parity integer observations; action masks; fixed decision ticks (simultaneous-move snapshots); Policy interface (idle/scripted/playback) with decision tracing + bit-exact playback; resumable `MatchEngine`; C ABI (`libarena_env`); `python/tbc_arena` ctypes package; deterministic replay; JSONL traces; `arena_run`/`arena_replay`/`arena_dist`/`arena_diff`/`arena_bench`; golden traces.
+
+OUT (do not build, even as stubs beyond a header comment, until a milestone admits it — stop and flag instead): auras/buffs/debuffs, stances, dual-wield, movement (units are stationary), stealth, pets, networking, RL training code (the env interface exists; learning algorithms live outside `sim/`), batched multi-env stepping, live-oracle capture, any map geometry beyond a flat plane. M5 candidates are listed in `docs/project_plan_v3.md` — decide with the owner, then update this section.
 
 ## Hard rules
 
@@ -34,7 +36,7 @@ OUT (do not build, even as stubs beyond a header comment): spells, auras, GCD, m
 - **Glancing blows do not occur against players.** The table builder must take an `is_player_target` flag; tests must confirm zero glances in PvP scenarios.
 - **Parry and block are frontal-only. Dodge does not apply to attacks from behind.** Facing is therefore part of even this stationary scenario; the scenario file pins attacker position relative to defender facing.
 - Block requires an equipped shield; crushing blows are mob-only (exclude in PvP, note in ledger).
-- Dual-wield has its own miss penalty — out of scope for M0 unless a scenario adds an off-hand; if implemented, spec it first.
+- Dual-wield has its own miss penalty — still out of scope (no scenario has an off-hand); if a milestone adds it, spec it first.
 - Rage generation from damage dealt/taken follows the TBC-era formula with a level-dependent conversion constant — spec it with `source_status` and `TODO(verify)` on the constant rather than guessing silently.
 
 ## Code conventions
@@ -57,5 +59,5 @@ OUT (do not build, even as stubs beyond a header comment): spells, auras, GCD, m
 
 - Small commits, imperative messages, formula changes reference their spec entry.
 - When a needed fact is unknown (e.g., exact base miss at equal level), do not stall and do not invent silently: write the spec entry with the best community-documented value, mark `TODO(verify)`, add a ledger entry, continue.
-- Throughput numbers go in `docs/benchmarks.md` with hardware, compiler, and flags. Do not optimize past the M0 target (see INITIAL_PROMPT) at the cost of clarity.
+- Throughput numbers go in `docs/benchmarks.md` with hardware, compiler, and flags. Current throughput is orders of magnitude above any training need; do not optimize at the cost of clarity (the named scaling path, when needed, is batched multi-env stepping).
 - If a task seems to require anything in the OUT list, stop and flag it instead of building it.
