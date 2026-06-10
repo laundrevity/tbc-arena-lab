@@ -101,4 +101,13 @@ if(Python3_Interpreter_FOUND)
            COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/python/tests/test_env.py)
   set_tests_properties(python_env PROPERTIES
     ENVIRONMENT "TBC_ARENA_LIB=$<TARGET_FILE:arena_env>;TBC_ARENA_ROOT=${CMAKE_SOURCE_DIR}")
+  # M5 training harness verification (numpy-only; skipped if numpy missing).
+  execute_process(COMMAND ${Python3_EXECUTABLE} -c "import numpy"
+                  RESULT_VARIABLE HAVE_NUMPY OUTPUT_QUIET ERROR_QUIET)
+  if(HAVE_NUMPY EQUAL 0)
+    add_test(NAME python_train
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/python/train/test_train.py)
+    set_tests_properties(python_train PROPERTIES
+      ENVIRONMENT "TBC_ARENA_LIB=$<TARGET_FILE:arena_env>;TBC_ARENA_ROOT=${CMAKE_SOURCE_DIR}")
+  endif()
 endif()
