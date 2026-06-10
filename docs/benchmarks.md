@@ -95,3 +95,39 @@ ctypes call overhead dominates the full loop (5 calls + dict per tick per
 unit). Acceptable for early experiments; the scaling path is a batched
 multi-env step call with preallocated buffers (future milestone). Native
 C++ throughput is unchanged by the engine refactor (goldens byte-identical).
+
+### 2026-06-10 — Hardware move: Apple M5 Max (commit f3db610, no code change)
+
+- Hardware: Apple M5 Max (MacBook Pro, 128 GB RAM), single core, measured
+  inside a Linux aarch64 VM (4 vCPU). The VM executes natively on Apple
+  Silicon, so CPU-bound single-core numbers should be near-native, but this
+  is NOT a bare-metal macOS build; treat as the new baseline for this
+  environment, not a clean hardware-only comparison.
+- Compiler: GCC 11.4.0 (prior rows: GCC 13.3.0 on the i9 — machine and
+  compiler changed together; attribution between them is not separable),
+  CMake RelWithDebInfo (`-O2 -g -DNDEBUG -Wall -Wextra -Werror`).
+- Verification before benching: `ctest` 100% pass (40,926 doctest
+  assertions + python_env suite); all four golden traces replay
+  byte-identically on aarch64 — first cross-architecture, cross-compiler
+  determinism confirmation.
+- Command: `arena_bench scenarios/<s>.yaml --seconds 3`
+
+| scenario | sim-ms per wall-ms | swings/sec | abilities/sec | checkpoints/sec | vs i9-11900K |
+|---|---|---|---|---|---|
+| m0_front_shield | 6,192,034 | 1.75e6 | — | 6.19e6 | +14% |
+| m1_mutual | 5,110,658 | 3.54e6 | — | 5.11e6 | +8% |
+| m2_duel (100 ms ticks) | 1,641,170 | 6.48e5 | 7.46e5 | 1.64e6 | +161% |
+
+Python bindings (Python 3.10 here vs 3.13 prior, ctypes, m2_duel):
+
+| driver | steps/s | simulated-sec per wall-sec | vs prior |
+|---|---|---|---|
+| Python step() only | 1.06e6 | 1.06e5 | +7% |
+| Python full loop (observe+masks) | 2.57e5 | 2.57e4 | +84% |
+
+The checkpoint-serialization-bound pure kernels gain modestly (+8–14%);
+the tick-heavy m2_duel path (virtual dispatch, observation building) gains
+2.6x, and the Python full loop 1.8x — the M5 core disproportionately helps
+the branchy/call-heavy paths that will dominate RL workloads. A full 60 s
+duel now costs ~37 µs native / ~2.3 ms from Python. No optimization
+warranted (CLAUDE.md workflow).
