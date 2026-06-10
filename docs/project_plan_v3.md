@@ -51,9 +51,25 @@ Implications kept in view (but not built early):
   resumable MatchEngine (run_match is a wrapper over it — one
   implementation), C ABI shared library, pure-ctypes Python package, parity
   + determinism + trace-round-trip tests, throughput recorded.
-- **M5+ — TBD with the owner.** Candidates, unordered: self-play harness +
-  batched env stepping (numpy buffers); dual-wield; stances + more abilities
-  (richer decision space); movement/chase/leeway; live-oracle capture
-  (instrumented cmangos server); Anniversary 2.5.x evidence pass (D-003);
-  yellow-attack differential coverage in arena_diff; combat-log observation
-  windows.
+- **M5 — DECIDED with the owner (2026-06-10): self-play bring-up.** Purpose:
+  produce the first evidence that the substrate actually trains — nothing has
+  been learned against this env yet, and observation/action/reward design
+  errors get more expensive with every mechanic stacked on top. Scope:
+  - Minimal PPO self-play on `m2_duel` via the existing ctypes bindings,
+    living in `python/train/` (in-repo by owner decision; training code stays
+    outside `sim/`; experiments must be seeded and reproducible, but repo
+    spec/golden-trace rules apply to the env, not to experiment code).
+  - Pass criterion, statistical per CLAUDE.md rule 6: the learned policy
+    beats Idle decisively and beats-or-matches ScriptedPolicy over N seeded
+    evaluation matches within a binomial CI (N and thresholds pinned in the
+    experiment config before training).
+  - Folded in: yellow-attack differential coverage in `arena_diff` (MS/HS
+    math now feeds training; the harness currently checks whites only).
+  - Explicitly deferred: batched multi-env stepping — single-process Python
+    already does ~430 duels/sec on the owner's M5 Max; build batching only
+    when a profiled training run shows the ctypes loop is the wall.
+- **M6+ — TBD with the owner.** Candidates, unordered: dual-wield; stances +
+  more abilities (richer decision space, once learning demonstrably works);
+  batched env stepping (numpy buffers) if M5 profiling demands it;
+  movement/chase/leeway; live-oracle capture (instrumented cmangos server);
+  Anniversary 2.5.x evidence pass (D-003); combat-log observation windows.
